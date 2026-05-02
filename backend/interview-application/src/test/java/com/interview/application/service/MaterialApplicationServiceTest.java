@@ -50,6 +50,7 @@ class MaterialApplicationServiceTest {
                 null,
                 "PENDING",
                 null,
+                null,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
@@ -111,6 +112,7 @@ class MaterialApplicationServiceTest {
                 "/storage/notes.docx",
                 null,
                 "READY",
+                null,
                 null,
                 LocalDateTime.now(),
                 LocalDateTime.now()

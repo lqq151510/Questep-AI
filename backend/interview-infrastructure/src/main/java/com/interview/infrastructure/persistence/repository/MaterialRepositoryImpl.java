@@ -40,7 +40,7 @@ public class MaterialRepositoryImpl implements MaterialRepository {
 
     @Override
     public List<Material> findByUserId(Long userId) {
-        return materialMapper.selectByUserId(userId);
+        return materialMapper.selectByUserId(userId, null);
     }
 
     @Override

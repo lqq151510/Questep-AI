@@ -15,23 +15,112 @@
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
+
+    <sql id="taskColumns">id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at</sql>
+
+    <sql id="taskInsertColumns">
+        <trim suffixOverrides=",">
+            task_no,
+            task_type,
+            biz_id,
+            <if test="status != null">status,</if>
+            <if test="progress != null">progress,</if>
+            created_by,
+        </trim>
+    </sql>
+
+    <sql id="taskInsertValues">
+        <trim suffixOverrides=",">
+            #{taskNo},
+            #{taskType},
+            #{bizId},
+            <if test="status != null">#{status},</if>
+            <if test="progress != null">#{progress},</if>
+            #{createdBy},
+        </trim>
+    </sql>
+
     <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.AsyncTaskRecordPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO async_task_records (task_no,task_type,biz_id,status,progress,created_by)
-        VALUES (#{taskNo},#{taskType},#{bizId},#{status},#{progress},#{createdBy})
+        INSERT INTO async_task_records (
+            <include refid="taskInsertColumns"/>
+        )
+        VALUES (
+            <include refid="taskInsertValues"/>
+        )
     </insert>
-    <select id="selectById" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE id=#{id}</select>
-    <select id="selectByTaskNo" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE task_no=#{taskNo}</select>
-    <select id="selectByStatus" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE status=#{status} ORDER BY created_at ASC</select>
+
+    <update id="updateById" parameterType="com.interview.infrastructure.persistence.entity.AsyncTaskRecordPO">
+        UPDATE async_task_records
+        <set>
+            <if test="taskNo != null">task_no = #{taskNo},</if>
+            <if test="taskType != null">task_type = #{taskType},</if>
+            <if test="bizId != null">biz_id = #{bizId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="progress != null">progress = #{progress},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            updated_at = CURRENT_TIMESTAMP
+            <if test="status == 'PROCESSING'">, started_at = CURRENT_TIMESTAMP</if>
+            <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at = CURRENT_TIMESTAMP</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
     <update id="updateStatus">
         UPDATE async_task_records
-        SET status=#{status}, progress=#{progress}, updated_at=CURRENT_TIMESTAMP
-        <if test="status == 'PROCESSING'">, started_at=CURRENT_TIMESTAMP</if>
-        <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at=CURRENT_TIMESTAMP</if>
-        WHERE id=#{id}
+        SET status = #{status}, progress = #{progress}, updated_at = CURRENT_TIMESTAMP
+        <if test="status == 'PROCESSING'">, started_at = CURRENT_TIMESTAMP</if>
+        <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at = CURRENT_TIMESTAMP</if>
+        WHERE id = #{id}
     </update>
+
     <update id="updateError">
         UPDATE async_task_records
-        SET status='FAILED', error_msg=#{errorMsg}, updated_at=CURRENT_TIMESTAMP, finished_at=CURRENT_TIMESTAMP
-        WHERE id=#{id}
+        SET status = 'FAILED', error_msg = #{errorMsg}, updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
     </update>
+
+    <select id="selectById" resultMap="taskMap">
+        SELECT <include refid="taskColumns"/>
+        FROM async_task_records
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByTaskNo" resultMap="taskMap">
+        SELECT <include refid="taskColumns"/>
+        FROM async_task_records
+        WHERE task_no = #{taskNo}
+    </select>
+
+    <select id="selectByStatus" resultMap="taskMap">
+        SELECT <include refid="taskColumns"/>
+        FROM async_task_records
+        WHERE status = #{status}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectByCondition" resultMap="taskMap">
+        SELECT <include refid="taskColumns"/>
+        FROM async_task_records
+        <where>
+            <if test="taskNo != null and taskNo != ''">AND task_no = #{taskNo}</if>
+            <if test="taskType != null and taskType != ''">AND task_type = #{taskType}</if>
+            <if test="bizId != null">AND biz_id = #{bizId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="createdBy != null">AND created_by = #{createdBy}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectByIds" resultMap="taskMap">
+        SELECT <include refid="taskColumns"/>
+        FROM async_task_records
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM async_task_records WHERE id = #{id}
+    </delete>
 </mapper>

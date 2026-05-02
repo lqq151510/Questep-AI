@@ -9,11 +9,92 @@
             <arg column="status" javaType="java.lang.Integer"/>
         </constructor>
     </resultMap>
+
+    <sql id="userColumns">id,username,password_hash,status</sql>
+
+    <sql id="userInsertColumns">
+        <trim suffixOverrides=",">
+            username,
+            email,
+            password_hash,
+            <if test="displayName != null">display_name,</if>
+            <if test="status != null">status,</if>
+        </trim>
+    </sql>
+
+    <sql id="userInsertValues">
+        <trim suffixOverrides=",">
+            #{username},
+            #{email},
+            #{passwordHash},
+            <if test="displayName != null">#{displayName},</if>
+            <if test="status != null">#{status},</if>
+        </trim>
+    </sql>
+
     <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.UserPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO users (username, email, password_hash, display_name, status)
-        VALUES (#{username}, #{email}, #{passwordHash}, #{displayName}, #{status})
+        INSERT INTO users (
+            <include refid="userInsertColumns"/>
+        )
+        VALUES (
+            <include refid="userInsertValues"/>
+        )
     </insert>
-    <select id="selectByUsername" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE username=#{username} LIMIT 1</select>
-    <select id="selectByEmail" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE email=#{email} LIMIT 1</select>
-    <select id="selectById" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE id=#{id} LIMIT 1</select>
+
+    <update id="updateById" parameterType="com.interview.infrastructure.persistence.entity.UserPO">
+        UPDATE users
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="passwordHash != null">password_hash = #{passwordHash},</if>
+            <if test="displayName != null">display_name = #{displayName},</if>
+            <if test="status != null">status = #{status},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByUsername" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <select id="selectByEmail" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE email = #{email}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="selectByCondition" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        <where>
+            <if test="username != null and username != ''">AND username = #{username}</if>
+            <if test="email != null and email != ''">AND email = #{email}</if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+    </select>
+
+    <select id="selectByIds" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM users WHERE id = #{id}
+    </delete>
 </mapper>

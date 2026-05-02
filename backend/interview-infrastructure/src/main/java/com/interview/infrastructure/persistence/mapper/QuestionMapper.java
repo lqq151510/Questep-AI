@@ -10,7 +10,15 @@ public interface QuestionMapper {
 
     int insert(QuestionPO questionPO);
 
+    int updateById(QuestionPO questionPO);
+
     Question selectById(Long id);
 
     List<Question> selectRecentByUser(@Param("userId") Long userId, @Param("limit") int limit);
+
+    List<Question> selectByCondition(QuestionPO condition);
+
+    List<Question> selectByIds(@Param("ids") List<Long> ids);
+
+    int deleteById(Long id);
 }

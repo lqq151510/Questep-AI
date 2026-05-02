@@ -22,42 +22,100 @@
         id,material_id,creator_user_id,question_type,stem_text,reference_answer,analysis_text,difficulty,source_type,model_name,created_at,updated_at
     </sql>
 
-    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.QuestionPO" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO questions (
-            material_id,
-            creator_user_id,
+    <sql id="questionInsertColumns">
+        <trim suffixOverrides=",">
+            <if test="materialId != null">material_id,</if>
+            <if test="creatorUserId != null">creator_user_id,</if>
             question_type,
             stem_text,
-            reference_answer,
-            analysis_text,
-            difficulty,
-            source_type,
-            model_name
-        )
-        VALUES (
-            #{materialId},
-            #{creatorUserId},
+            <if test="referenceAnswer != null">reference_answer,</if>
+            <if test="analysisText != null">analysis_text,</if>
+            <if test="difficulty != null">difficulty,</if>
+            <if test="sourceType != null">source_type,</if>
+            <if test="modelName != null">model_name,</if>
+        </trim>
+    </sql>
+
+    <sql id="questionInsertValues">
+        <trim suffixOverrides=",">
+            <if test="materialId != null">#{materialId},</if>
+            <if test="creatorUserId != null">#{creatorUserId},</if>
             #{questionType},
             #{stemText},
-            #{referenceAnswer},
-            #{analysisText},
-            #{difficulty},
-            #{sourceType},
-            #{modelName}
+            <if test="referenceAnswer != null">#{referenceAnswer},</if>
+            <if test="analysisText != null">#{analysisText},</if>
+            <if test="difficulty != null">#{difficulty},</if>
+            <if test="sourceType != null">#{sourceType},</if>
+            <if test="modelName != null">#{modelName},</if>
+        </trim>
+    </sql>
+
+    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.QuestionPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO questions (
+            <include refid="questionInsertColumns"/>
+        )
+        VALUES (
+            <include refid="questionInsertValues"/>
         )
     </insert>
+
+    <update id="updateById" parameterType="com.interview.infrastructure.persistence.entity.QuestionPO">
+        UPDATE questions
+        <set>
+            <if test="materialId != null">material_id = #{materialId},</if>
+            <if test="creatorUserId != null">creator_user_id = #{creatorUserId},</if>
+            <if test="questionType != null">question_type = #{questionType},</if>
+            <if test="stemText != null">stem_text = #{stemText},</if>
+            <if test="referenceAnswer != null">reference_answer = #{referenceAnswer},</if>
+            <if test="analysisText != null">analysis_text = #{analysisText},</if>
+            <if test="difficulty != null">difficulty = #{difficulty},</if>
+            <if test="sourceType != null">source_type = #{sourceType},</if>
+            <if test="modelName != null">model_name = #{modelName},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE id = #{id}
+    </update>
 
     <select id="selectById" resultMap="questionMap">
         SELECT <include refid="questionColumns"/>
         FROM questions
-        WHERE id=#{id}
+        WHERE id = #{id}
     </select>
 
     <select id="selectRecentByUser" resultMap="questionMap">
         SELECT <include refid="questionColumns"/>
         FROM questions
-        WHERE creator_user_id=#{userId}
+        WHERE creator_user_id = #{userId}
         ORDER BY id DESC
         LIMIT #{limit}
     </select>
+
+    <select id="selectByCondition" resultMap="questionMap">
+        SELECT <include refid="questionColumns"/>
+        FROM questions
+        <where>
+            <if test="materialId != null">AND material_id = #{materialId}</if>
+            <if test="creatorUserId != null">AND creator_user_id = #{creatorUserId}</if>
+            <if test="questionType != null and questionType != ''">AND question_type = #{questionType}</if>
+            <if test="difficulty != null">AND difficulty = #{difficulty}</if>
+            <if test="sourceType != null and sourceType != ''">AND source_type = #{sourceType}</if>
+            <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+        ORDER BY id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectByIds" resultMap="questionMap">
+        SELECT <include refid="questionColumns"/>
+        FROM questions
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM questions WHERE id = #{id}
+    </delete>
 </mapper>

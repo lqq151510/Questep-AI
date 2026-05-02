@@ -114,11 +114,11 @@ class AuthApplicationServiceTest {
     @Test
     @DisplayName("Test successful registration with new user")
     void testRegisterSuccess() {
-        RegisterCommand command = new RegisterCommand("newUser", "new@example.com", "password123");
+        RegisterCommand command = new RegisterCommand("newUser", "new@example.com", "Password123!");
 
         when(userRepository.findByUsername("newUser")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode("password123")).thenReturn("encodedNewPassword");
+        when(passwordEncoder.encode("Password123!")).thenReturn("encodedNewPassword");
         when(userRepository.save("newUser", "new@example.com", "encodedNewPassword"))
                 .thenReturn(new User(3L, "newUser", "encodedNewPassword", 1));
         when(tokenService.generateToken(3L, "newUser")).thenReturn("newUserToken");

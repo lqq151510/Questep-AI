@@ -9,8 +9,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.regex.Pattern;
+
 @Service
 public class AuthApplicationService {
+
+    private static final Pattern UPPER_CASE = Pattern.compile("[A-Z]");
+    private static final Pattern LOWER_CASE = Pattern.compile("[a-z]");
+    private static final Pattern DIGIT = Pattern.compile("[0-9]");
+    private static final Pattern SPECIAL_CHAR = Pattern.compile("[^A-Za-z0-9]");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -39,6 +46,7 @@ public class AuthApplicationService {
         if (userRepository.findByEmail(command.email()).isPresent()) {
             throw new IllegalArgumentException("Email already exists");
         }
+        validatePasswordStrength(command.password());
 
         User user = userRepository.save(
                 command.username(),
@@ -46,5 +54,18 @@ public class AuthApplicationService {
                 passwordEncoder.encode(command.password())
         );
         return new LoginResult(tokenService.generateToken(user.id(), user.username()), "Bearer");
+    }
+
+    private void validatePasswordStrength(String password) {
+        int categories = 0;
+        if (UPPER_CASE.matcher(password).find()) categories++;
+        if (LOWER_CASE.matcher(password).find()) categories++;
+        if (DIGIT.matcher(password).find()) categories++;
+        if (SPECIAL_CHAR.matcher(password).find()) categories++;
+
+        if (categories < 3) {
+            throw new IllegalArgumentException(
+                    "Password must contain at least 3 of the following: uppercase letters, lowercase letters, digits, special characters");
+        }
     }
 }

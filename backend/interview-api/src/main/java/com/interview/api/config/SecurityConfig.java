@@ -1,6 +1,8 @@
 package com.interview.api.config;
 
 import com.interview.api.security.JwtAuthenticationFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +22,8 @@ import java.util.List;
 
 @Configuration
 public class SecurityConfig {
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter filter) throws Exception {
         http.cors(Customizer.withDefaults())
@@ -37,8 +41,11 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource(
             @Value("${app.cors.allowed-origins:http://127.0.0.1:3000,http://localhost:3000}") String allowedOrigins
     ) {
+        List<String> origins = parseCsv(allowedOrigins);
+        validateCorsOrigins(origins);
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(parseCsv(allowedOrigins));
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin"));
         config.setAllowCredentials(true);
@@ -59,5 +66,17 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(item -> !item.isEmpty())
                 .toList();
+    }
+
+    private void validateCorsOrigins(List<String> origins) {
+        for (String origin : origins) {
+            if ("*".equals(origin)) {
+                throw new IllegalStateException("CORS wildcard '*' is not allowed. Specify explicit origins via CORS_ALLOWED_ORIGINS.");
+            }
+            if (!origin.startsWith("http://") && !origin.startsWith("https://")) {
+                throw new IllegalStateException("CORS origin must start with http:// or https://, got: " + origin);
+            }
+        }
+        log.info("CORS allowed origins configured: {}", origins);
     }
 }

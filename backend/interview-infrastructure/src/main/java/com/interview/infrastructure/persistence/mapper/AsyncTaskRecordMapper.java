@@ -2,14 +2,28 @@ package com.interview.infrastructure.persistence.mapper;
 
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.infrastructure.persistence.entity.AsyncTaskRecordPO;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
 public interface AsyncTaskRecordMapper {
     int insert(AsyncTaskRecordPO po);
+
+    int updateById(AsyncTaskRecordPO po);
+
+    int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("progress") Integer progress);
+
+    int updateError(@Param("id") Long id, @Param("errorMsg") String errorMsg);
+
     AsyncTaskRecord selectById(Long id);
+
     AsyncTaskRecord selectByTaskNo(String taskNo);
+
     List<AsyncTaskRecord> selectByStatus(String status);
-    int updateStatus(Long id, String status, Integer progress);
-    int updateError(Long id, String errorMsg);
+
+    List<AsyncTaskRecord> selectByCondition(AsyncTaskRecordPO condition);
+
+    List<AsyncTaskRecord> selectByIds(@Param("ids") List<Long> ids);
+
+    int deleteById(Long id);
 }
