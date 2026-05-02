@@ -21,4 +21,17 @@
     </insert>
     <select id="selectById" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE id=#{id}</select>
     <select id="selectByTaskNo" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE task_no=#{taskNo}</select>
+    <select id="selectByStatus" resultMap="taskMap">SELECT id,task_no,task_type,biz_id,status,progress,error_msg,created_by,created_at,updated_at FROM async_task_records WHERE status=#{status} ORDER BY created_at ASC</select>
+    <update id="updateStatus">
+        UPDATE async_task_records
+        SET status=#{status}, progress=#{progress}, updated_at=CURRENT_TIMESTAMP
+        <if test="status == 'PROCESSING'">, started_at=CURRENT_TIMESTAMP</if>
+        <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at=CURRENT_TIMESTAMP</if>
+        WHERE id=#{id}
+    </update>
+    <update id="updateError">
+        UPDATE async_task_records
+        SET status='FAILED', error_msg=#{errorMsg}, updated_at=CURRENT_TIMESTAMP, finished_at=CURRENT_TIMESTAMP
+        WHERE id=#{id}
+    </update>
 </mapper>

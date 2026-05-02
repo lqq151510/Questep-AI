@@ -3,6 +3,7 @@ package com.interview.domain.repository;
 import com.interview.domain.model.Material;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MaterialRepository {
 
@@ -11,4 +12,6 @@ public interface MaterialRepository {
     List<Material> findByUserIdAndIds(Long userId, List<Long> ids);
 
     List<Material> findByUserId(Long userId);
+
+    Optional<Material> findById(Long id);
 }

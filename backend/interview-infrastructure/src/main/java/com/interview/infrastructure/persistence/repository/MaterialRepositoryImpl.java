@@ -7,6 +7,7 @@ import com.interview.infrastructure.persistence.mapper.MaterialMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class MaterialRepositoryImpl implements MaterialRepository {
@@ -40,5 +41,10 @@ public class MaterialRepositoryImpl implements MaterialRepository {
     @Override
     public List<Material> findByUserId(Long userId) {
         return materialMapper.selectByUserId(userId);
+    }
+
+    @Override
+    public Optional<Material> findById(Long id) {
+        return Optional.ofNullable(materialMapper.selectById(id));
     }
 }

@@ -7,7 +7,12 @@ public record Material(
         Long userId,
         String name,
         String fileType,
+        String sourceType,
+        String storageUrl,
+        String contentHash,
         String parseStatus,
+        String parseErrorMsg,
+        LocalDateTime parsedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

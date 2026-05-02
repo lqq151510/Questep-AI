@@ -7,6 +7,7 @@
             <arg column="user_id" javaType="java.lang.Long"/>
             <arg column="material_name" javaType="java.lang.String"/>
             <arg column="material_type" javaType="java.lang.String"/>
+            <arg column="storage_url" javaType="java.lang.String"/>
             <arg column="parse_status" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.LocalDateTime"/>
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
@@ -16,7 +17,7 @@
         INSERT INTO materials (user_id, material_name, material_type, storage_url, parse_status)
         VALUES (#{userId}, #{materialName}, #{materialType}, #{storageUrl}, #{parseStatus})
     </insert>
-    <sql id="materialColumns">id,user_id,material_name,material_type,parse_status,created_at,updated_at</sql>
+    <sql id="materialColumns">id,user_id,material_name,material_type,storage_url,parse_status,created_at,updated_at</sql>
     <select id="selectById" parameterType="long" resultMap="materialRecordMap">SELECT <include refid="materialColumns"/> FROM materials WHERE id=#{id}</select>
     <select id="selectByUserIdAndIds" resultMap="materialRecordMap">
         SELECT <include refid="materialColumns"/>

@@ -11,6 +11,8 @@ public record AsyncTaskRecord(
         Integer progress,
         String errorMsg,
         Long createdBy,
+        LocalDateTime startedAt,
+        LocalDateTime finishedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

@@ -38,4 +38,8 @@ public class JwtTokenService implements TokenService {
         Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
         return Long.valueOf(claims.getSubject());
     }
+    public long getExpireTime(String token) {
+        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        return claims.getExpiration().getTime() - System.currentTimeMillis();
+    }
 }

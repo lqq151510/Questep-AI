@@ -1,5 +1,6 @@
 package com.interview.api.security;
 
+import com.interview.application.service.TokenBlacklistService;
 import com.interview.application.service.TokenService;
 import com.interview.domain.model.User;
 import com.interview.domain.repository.UserRepository;
@@ -27,17 +28,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenService tokenService;
     private final UserRepository userRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthenticationFilter(TokenService tokenService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(
+            TokenService tokenService,
+            UserRepository userRepository,
+            TokenBlacklistService tokenBlacklistService
+    ) {
         this.tokenService = tokenService;
         this.userRepository = userRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String auth = request.getHeader("Authorization");
         if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
-            authenticate(auth.substring(7).trim(), request);
+            String token = auth.substring(7).trim();
+            if (!tokenBlacklistService.isBlacklisted(token)) {
+                authenticate(token, request);
+            }
         }
         chain.doFilter(request, response);
     }
