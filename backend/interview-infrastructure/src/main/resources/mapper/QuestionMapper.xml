@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.QuestionMapper">
+    <resultMap id="questionMap" type="com.interview.domain.model.Question">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="material_id" javaType="java.lang.Long"/>
+            <arg column="creator_user_id" javaType="java.lang.Long"/>
+            <arg column="question_type" javaType="java.lang.String"/>
+            <arg column="stem_text" javaType="java.lang.String"/>
+            <arg column="reference_answer" javaType="java.lang.String"/>
+            <arg column="analysis_text" javaType="java.lang.String"/>
+            <arg column="difficulty" javaType="java.lang.Integer"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="questionColumns">
+        id,material_id,creator_user_id,question_type,stem_text,reference_answer,analysis_text,difficulty,source_type,model_name,created_at,updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.QuestionPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO questions (
+            material_id,
+            creator_user_id,
+            question_type,
+            stem_text,
+            reference_answer,
+            analysis_text,
+            difficulty,
+            source_type,
+            model_name
+        )
+        VALUES (
+            #{materialId},
+            #{creatorUserId},
+            #{questionType},
+            #{stemText},
+            #{referenceAnswer},
+            #{analysisText},
+            #{difficulty},
+            #{sourceType},
+            #{modelName}
+        )
+    </insert>
+
+    <select id="selectById" resultMap="questionMap">
+        SELECT <include refid="questionColumns"/>
+        FROM questions
+        WHERE id=#{id}
+    </select>
+
+    <select id="selectRecentByUser" resultMap="questionMap">
+        SELECT <include refid="questionColumns"/>
+        FROM questions
+        WHERE creator_user_id=#{userId}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

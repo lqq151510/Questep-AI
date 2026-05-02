@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.UserMapper">
+    <resultMap id="userMap" type="com.interview.domain.model.User">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.UserPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (username, email, password_hash, display_name, status)
+        VALUES (#{username}, #{email}, #{passwordHash}, #{displayName}, #{status})
+    </insert>
+    <select id="selectByUsername" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE username=#{username} LIMIT 1</select>
+    <select id="selectByEmail" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE email=#{email} LIMIT 1</select>
+    <select id="selectById" resultMap="userMap">SELECT id,username,password_hash,status FROM users WHERE id=#{id} LIMIT 1</select>
+</mapper>

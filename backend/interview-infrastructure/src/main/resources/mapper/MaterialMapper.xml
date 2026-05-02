@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.MaterialMapper">
+    <resultMap id="materialRecordMap" type="com.interview.domain.model.Material">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.Long"/>
+            <arg column="material_name" javaType="java.lang.String"/>
+            <arg column="material_type" javaType="java.lang.String"/>
+            <arg column="parse_status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.MaterialPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO materials (user_id, material_name, material_type, storage_url, parse_status)
+        VALUES (#{userId}, #{materialName}, #{materialType}, #{storageUrl}, #{parseStatus})
+    </insert>
+    <sql id="materialColumns">id,user_id,material_name,material_type,parse_status,created_at,updated_at</sql>
+    <select id="selectById" parameterType="long" resultMap="materialRecordMap">SELECT <include refid="materialColumns"/> FROM materials WHERE id=#{id}</select>
+    <select id="selectByUserIdAndIds" resultMap="materialRecordMap">
+        SELECT <include refid="materialColumns"/>
+        FROM materials
+        WHERE user_id=#{userId}
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY id DESC
+    </select>
+    <select id="selectByUserId" parameterType="long" resultMap="materialRecordMap">
+        SELECT <include refid="materialColumns"/>
+        FROM materials
+        WHERE user_id=#{userId}
+        ORDER BY id DESC
+    </select>
+</mapper>
