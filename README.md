@@ -5,8 +5,10 @@
 ```bash
 cd backend
 mvn clean package
-mvn -pl interview-api spring-boot:run
+JWT_SECRET=<your-secret-at-least-32-chars> mvn -pl interview-api spring-boot:run
 ```
+
+> **⚠️ JWT_SECRET 是必填环境变量**，长度至少 32 字节，否则应用无法启动。生产环境请使用强随机密钥，切勿使用示例值。
 
 ## Local infrastructure
 
