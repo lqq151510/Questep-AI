@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/quizzes")
+@RequestMapping("/api/v1/quizzes")
 public class QuizController {
 
     private final QuizApplicationService quizApplicationService;

@@ -8,11 +8,20 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.regex.Pattern;
+
 @RestController
-@RequestMapping("/api/async-tasks")
+@RequestMapping("/api/v1/async-tasks")
 public class AsyncTaskController {
+    private static final Pattern TASK_NO_PATTERN = Pattern.compile("^PARSE-[a-f0-9]+$");
+
     private final AsyncTaskApplicationService service;
     public AsyncTaskController(AsyncTaskApplicationService service) { this.service = service; }
     @GetMapping("/{taskNo}")
-    public ApiResponse<AsyncTaskRecord> get(@PathVariable String taskNo) { return ApiResponse.ok(service.getByTaskNo(taskNo)); }
+    public ApiResponse<AsyncTaskRecord> get(@PathVariable String taskNo) {
+        if (!TASK_NO_PATTERN.matcher(taskNo).matches()) {
+            throw new IllegalArgumentException("Invalid task number format");
+        }
+        return ApiResponse.ok(service.getByTaskNo(taskNo));
+    }
 }

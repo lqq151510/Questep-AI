@@ -32,7 +32,7 @@ public class AuthApplicationService {
     public LoginResult login(LoginCommand command) {
         User user = userRepository.findByUsername(command.username())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
-        if (user.status() == null || user.status() != 1 || !passwordEncoder.matches(command.password(), user.passwordHash())) {
+        if (user.status() == null || user.status() != User.STATUS_ACTIVE || !passwordEncoder.matches(command.password(), user.passwordHash())) {
             throw new IllegalArgumentException("Invalid username or password");
         }
         return new LoginResult(tokenService.generateToken(user.id(), user.username()), "Bearer");

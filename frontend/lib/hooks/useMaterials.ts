@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useDashboardStore } from '../stores/useDashboardStore';
-import type { MaterialItem } from '../types/dashboard';
+import { useDashboardStore } from '@/stores/useDashboardStore';
+import type { MaterialItem } from '@/types/dashboard';
 
 export function useMaterials() {
   const {

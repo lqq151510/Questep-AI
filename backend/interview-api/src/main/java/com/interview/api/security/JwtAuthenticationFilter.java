@@ -2,6 +2,7 @@ package com.interview.api.security;
 
 import com.interview.application.service.TokenBlacklistService;
 import com.interview.application.service.TokenService;
+import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.User;
 import com.interview.domain.repository.UserRepository;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -59,12 +60,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             Long uid = tokenService.parseUserId(token);
             User user = userRepository.findById(uid).orElse(null);
-            if (user != null && user.status() != null && user.status() == 1) {
+            if (user != null && user.status() != null && user.status() == User.STATUS_ACTIVE) {
                 SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(
                                 user.id(),
                                 null,
-                                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                                List.of(new SimpleGrantedAuthority(TaskConstants.ROLE_USER))
                         )
                 );
             }

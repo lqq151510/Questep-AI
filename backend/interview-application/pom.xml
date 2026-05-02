@@ -15,6 +15,11 @@
     <dependencies>
         <dependency>
             <groupId>com.interview</groupId>
+            <artifactId>interview-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.interview</groupId>
             <artifactId>interview-domain</artifactId>
             <version>${project.version}</version>
         </dependency>

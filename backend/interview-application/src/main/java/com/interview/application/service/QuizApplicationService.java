@@ -3,6 +3,7 @@ package com.interview.application.service;
 import com.interview.aigateway.client.LlmGateway;
 import com.interview.application.dto.GenerateQuizCommand;
 import com.interview.application.dto.GeneratedQuizResult;
+import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
 import com.interview.domain.repository.MaterialRepository;
@@ -76,8 +77,8 @@ public class QuizApplicationService {
                     draft.referenceAnswer(),
                     draft.analysisText(),
                     difficulty,
-                    "AI",
-                    "noop-gateway"
+                    TaskConstants.SOURCE_TYPE_AI,
+                    TaskConstants.GATEWAY_NOOP
             ));
         }
 

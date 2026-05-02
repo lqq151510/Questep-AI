@@ -1,6 +1,7 @@
 package com.interview.application.service;
 
 import com.interview.aigateway.client.LlmGateway;
+import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
@@ -35,13 +36,13 @@ public class MaterialParseTaskProcessor {
             logger.info("Starting to process task: taskNo={}, taskType={}, bizId={}",
                     task.taskNo(), task.taskType(), task.bizId());
 
-            asyncTaskRecordRepository.updateStatus(task.id(), "PROCESSING", 10);
+            asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 10);
 
-            if ("MATERIAL_PARSE".equals(task.taskType())) {
+            if (TaskConstants.TYPE_MATERIAL_PARSE.equals(task.taskType())) {
                 parseMaterial(task);
             }
 
-            asyncTaskRecordRepository.updateStatus(task.id(), "SUCCESS", 100);
+            asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_SUCCESS, 100);
             logger.info("Task completed successfully: taskNo={}", task.taskNo());
 
         } catch (Exception e) {
@@ -53,12 +54,12 @@ public class MaterialParseTaskProcessor {
     private void parseMaterial(AsyncTaskRecord task) {
         logger.info("Parsing material with id: {}", task.bizId());
 
-        asyncTaskRecordRepository.updateStatus(task.id(), "PROCESSING", 30);
+        asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 30);
 
         Material material = materialRepository.findById(task.bizId())
                 .orElseThrow(() -> new IllegalArgumentException("Material not found: " + task.bizId()));
 
-        asyncTaskRecordRepository.updateStatus(task.id(), "PROCESSING", 50);
+        asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 50);
 
         String storageUrl = material.storageUrl();
         if (storageUrl != null && Files.exists(Paths.get(storageUrl))) {
@@ -76,7 +77,7 @@ public class MaterialParseTaskProcessor {
             }
         }
 
-        asyncTaskRecordRepository.updateStatus(task.id(), "PROCESSING", 80);
+        asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 80);
         logger.info("Material parsing completed for id: {}", task.bizId());
     }
 }

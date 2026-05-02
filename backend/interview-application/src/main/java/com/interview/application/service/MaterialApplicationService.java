@@ -1,6 +1,7 @@
 package com.interview.application.service;
 
 import com.interview.application.dto.UploadMaterialResult;
+import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
@@ -26,8 +27,8 @@ public class MaterialApplicationService {
     public UploadMaterialResult uploadAndCreateParseTask(Long userId, String name, String fileType, String storagePath) {
         Material material = materialRepository.save(userId, name, fileType, storagePath);
         AsyncTaskRecord task = asyncTaskRecordRepository.create(
-                "PARSE-" + UUID.randomUUID().toString().replace("-", ""),
-                "MATERIAL_PARSE",
+                TaskConstants.TASK_NO_PREFIX + UUID.randomUUID().toString().replace("-", ""),
+                TaskConstants.TYPE_MATERIAL_PARSE,
                 material.id(),
                 userId
         );

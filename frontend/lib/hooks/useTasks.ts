@@ -1,6 +1,5 @@
-import { useCallback } from 'react';
-import { useDashboardStore } from '../stores/useDashboardStore';
-import type { TaskItem } from '../types/dashboard';
+import { useDashboardStore } from '@/stores/useDashboardStore';
+import type { TaskItem } from '@/types/dashboard';
 
 export function useTasks() {
   const { tasks, tickProgress } = useDashboardStore();

@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/materials")
+@RequestMapping("/api/v1/materials")
 public class MaterialController {
     private static final long MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(

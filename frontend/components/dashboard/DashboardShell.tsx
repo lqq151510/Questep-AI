@@ -10,6 +10,8 @@ import { TaskPanel } from "@/components/dashboard/TaskPanel";
 import { ParticleField } from "@/components/layout/ParticleField";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useDashboardStore } from "@/stores/useDashboardStore";
 
 export function DashboardShell() {
@@ -17,6 +19,8 @@ export function DashboardShell() {
   const tasks = useDashboardStore((state) => state.tasks);
   const selectedMaterialIds = useDashboardStore((state) => state.selectedMaterialIds);
   const tickProgress = useDashboardStore((state) => state.tickProgress);
+  const apiState = useDashboardStore((state) => state.apiState);
+  const quizState = useDashboardStore((state) => state.quizState);
 
   useEffect(() => {
     const timer = window.setInterval(tickProgress, 1600);
@@ -39,6 +43,10 @@ export function DashboardShell() {
 
       <section className="workspace">
         <TopBar runningCount={metrics.runningCount} selectedCount={selectedMaterialIds.length} />
+        <div className="flex gap-2 px-1">
+          <LoadingOverlay state={apiState} loadingText="Syncing materials..." errorText="Material sync failed" />
+          <LoadingOverlay state={quizState} loadingText="Generating questions..." errorText="Question generation failed" />
+        </div>
         <OverviewGrid
           avgScore={metrics.avgScore}
           materialCount={materials.length}
@@ -48,13 +56,21 @@ export function DashboardShell() {
 
         <section className="content-grid">
           <section className="primary-column">
-            <MaterialPanel />
-            <QuestionComposer />
+            <ErrorBoundary>
+              <MaterialPanel />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <QuestionComposer />
+            </ErrorBoundary>
           </section>
 
           <aside className="right-column">
-            <TaskPanel />
-            <InsightPanel />
+            <ErrorBoundary>
+              <TaskPanel />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <InsightPanel />
+            </ErrorBoundary>
           </aside>
         </section>
       </section>
