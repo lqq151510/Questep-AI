@@ -1,6 +1,6 @@
 package com.interview.aigateway.impl;
 
-import com.interview.aigateway.client.LlmGateway;
+import com.interview.application.port.LlmGateway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 

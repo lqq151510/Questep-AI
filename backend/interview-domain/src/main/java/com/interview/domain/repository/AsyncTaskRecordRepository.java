@@ -13,6 +13,8 @@ public interface AsyncTaskRecordRepository {
 
     List<AsyncTaskRecord> findByStatus(String status);
 
+    List<AsyncTaskRecord> claimPendingTasks(int limit);
+
     AsyncTaskRecord updateStatus(Long id, String status, Integer progress);
 
     AsyncTaskRecord updateError(Long id, String errorMsg);

@@ -1,6 +1,8 @@
 package com.interview.api.controller;
 
 import com.interview.common.api.ApiResponse;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -8,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -27,8 +28,6 @@ public class HealthController {
     @GetMapping
     public ApiResponse<Map<String, Object>> health() {
         Map<String, Object> details = new LinkedHashMap<>();
-        details.put("service", "interview-api");
-        details.put("timestamp", OffsetDateTime.now().toString());
 
         boolean dbUp = checkDatabase();
         boolean redisUp = checkRedis();
@@ -51,8 +50,13 @@ public class HealthController {
     }
 
     private boolean checkRedis() {
-        try {
-            return "PONG".equals(redisTemplate.getConnectionFactory().getConnection().ping());
+        RedisConnectionFactory connectionFactory = redisTemplate.getConnectionFactory();
+        if (connectionFactory == null) {
+            return false;
+        }
+        try (RedisConnection connection = connectionFactory.getConnection()) {
+            String pong = connection.ping();
+            return "PONG".equalsIgnoreCase(pong);
         } catch (Exception e) {
             return false;
         }

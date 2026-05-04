@@ -12,6 +12,7 @@ public record Material(
         String contentHash,
         String parseStatus,
         String parseErrorMsg,
+        String analysisText,
         LocalDateTime parsedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

@@ -1,4 +1,4 @@
-package com.interview.aigateway.client;
+package com.interview.application.port;
 
 public interface LlmGateway {
 

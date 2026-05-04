@@ -21,6 +21,10 @@ public interface AsyncTaskRecordMapper {
 
     List<AsyncTaskRecord> selectByStatus(String status);
 
+    List<AsyncTaskRecord> selectPendingForUpdate(@Param("limit") int limit);
+
+    int batchUpdateStatus(@Param("ids") List<Long> ids, @Param("status") String status, @Param("progress") Integer progress);
+
     List<AsyncTaskRecord> selectByCondition(AsyncTaskRecordPO condition);
 
     List<AsyncTaskRecord> selectByIds(@Param("ids") List<Long> ids);

@@ -2,6 +2,7 @@ package com.interview.application.service;
 
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
+import com.interview.common.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,8 +64,8 @@ class AsyncTaskApplicationServiceTest {
     void testGetByTaskNoNotFound() {
         when(asyncTaskRecordRepository.findByTaskNo("NONEXISTENT")).thenReturn(Optional.empty());
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
                 () -> asyncTaskApplicationService.getByTaskNo("NONEXISTENT")
         );
 

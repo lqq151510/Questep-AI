@@ -37,7 +37,7 @@ mybatis:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:}
+    secret: ${JWT_SECRET}
     expire-ms: ${JWT_EXPIRE_MS:86400000}
   storage:
     material-dir: ${MATERIAL_DIR:./data/materials}
@@ -57,6 +57,12 @@ app:
     base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:gpt-4o-mini}
+    system-prompt: ${LLM_SYSTEM_PROMPT:You generate concise interview practice material grounded in backend project experience.}
+    retry:
+      max-attempts: ${LLM_RETRY_MAX_ATTEMPTS:3}
+      backoff-ms: ${LLM_RETRY_BACKOFF_MS:500}
+  quiz:
+    question-guidance: ${QUIZ_QUESTION_GUIDANCE:Keep each question grounded in backend project experience.}
 
 management:
   endpoints:

@@ -7,22 +7,33 @@
             <arg column="user_id" javaType="java.lang.Long"/>
             <arg column="material_name" javaType="java.lang.String"/>
             <arg column="material_type" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
             <arg column="storage_url" javaType="java.lang.String"/>
+            <arg column="content_hash" javaType="java.lang.String"/>
             <arg column="parse_status" javaType="java.lang.String"/>
+            <arg column="parse_error_msg" javaType="java.lang.String"/>
+            <arg column="analysis_text" javaType="java.lang.String"/>
+            <arg column="parsed_at" javaType="java.time.LocalDateTime"/>
             <arg column="created_at" javaType="java.time.LocalDateTime"/>
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
 
-    <sql id="materialColumns">id,user_id,material_name,material_type,storage_url,parse_status,created_at,updated_at</sql>
+    <sql id="materialColumns">
+        id,user_id,material_name,material_type,source_type,storage_url,content_hash,parse_status,parse_error_msg,analysis_text,parsed_at,created_at,updated_at
+    </sql>
 
     <sql id="materialInsertColumns">
         <trim suffixOverrides=",">
             user_id,
             material_name,
             material_type,
+            <if test="sourceType != null">source_type,</if>
             <if test="storageUrl != null">storage_url,</if>
+            <if test="contentHash != null">content_hash,</if>
             <if test="parseStatus != null">parse_status,</if>
+            <if test="parseErrorMsg != null">parse_error_msg,</if>
+            <if test="parsedAt != null">parsed_at,</if>
         </trim>
     </sql>
 
@@ -31,8 +42,12 @@
             #{userId},
             #{materialName},
             #{materialType},
+            <if test="sourceType != null">#{sourceType},</if>
             <if test="storageUrl != null">#{storageUrl},</if>
+            <if test="contentHash != null">#{contentHash},</if>
             <if test="parseStatus != null">#{parseStatus},</if>
+            <if test="parseErrorMsg != null">#{parseErrorMsg},</if>
+            <if test="parsedAt != null">#{parsedAt},</if>
         </trim>
     </sql>
 
@@ -50,10 +65,33 @@
         <set>
             <if test="materialName != null">material_name = #{materialName},</if>
             <if test="materialType != null">material_type = #{materialType},</if>
+            <if test="sourceType != null">source_type = #{sourceType},</if>
             <if test="storageUrl != null">storage_url = #{storageUrl},</if>
+            <if test="contentHash != null">content_hash = #{contentHash},</if>
             <if test="parseStatus != null">parse_status = #{parseStatus},</if>
+            <if test="parseErrorMsg != null">parse_error_msg = #{parseErrorMsg},</if>
+            <if test="parsedAt != null">parsed_at = #{parsedAt},</if>
             updated_at = CURRENT_TIMESTAMP
         </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateParseSuccess">
+        UPDATE materials
+        SET parse_status = 'SUCCESS',
+            parse_error_msg = NULL,
+            analysis_text = #{analysisText},
+            parsed_at = CURRENT_TIMESTAMP,
+            content_hash = #{contentHash},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateParseFailure">
+        UPDATE materials
+        SET parse_status = 'FAILED',
+            parse_error_msg = #{parseErrorMsg},
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = #{id}
     </update>
 

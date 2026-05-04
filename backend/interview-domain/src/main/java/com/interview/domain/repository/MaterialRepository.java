@@ -14,4 +14,8 @@ public interface MaterialRepository {
     List<Material> findByUserId(Long userId);
 
     Optional<Material> findById(Long id);
+
+    void markParseSuccess(Long id, String contentHash, String analysisText);
+
+    void markParseFailure(Long id, String errorMsg);
 }

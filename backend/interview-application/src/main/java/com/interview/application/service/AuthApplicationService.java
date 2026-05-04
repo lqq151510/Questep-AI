@@ -3,6 +3,7 @@ package com.interview.application.service;
 import com.interview.application.dto.LoginCommand;
 import com.interview.application.dto.LoginResult;
 import com.interview.application.dto.RegisterCommand;
+import com.interview.common.exception.UnauthorizedException;
 import com.interview.domain.model.User;
 import com.interview.domain.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,9 +32,9 @@ public class AuthApplicationService {
 
     public LoginResult login(LoginCommand command) {
         User user = userRepository.findByUsername(command.username())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
         if (user.status() == null || user.status() != User.STATUS_ACTIVE || !passwordEncoder.matches(command.password(), user.passwordHash())) {
-            throw new IllegalArgumentException("Invalid username or password");
+            throw new UnauthorizedException("Invalid username or password");
         }
         return new LoginResult(tokenService.generateToken(user.id(), user.username()), "Bearer");
     }

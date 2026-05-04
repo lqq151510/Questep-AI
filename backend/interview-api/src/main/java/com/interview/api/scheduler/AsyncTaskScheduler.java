@@ -1,7 +1,6 @@
 package com.interview.api.scheduler;
 
 import com.interview.application.service.MaterialParseTaskProcessor;
-import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
 import org.slf4j.Logger;
@@ -11,8 +10,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PreDestroy;
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Component
 public class AsyncTaskScheduler {
@@ -20,28 +20,33 @@ public class AsyncTaskScheduler {
 
     private final AsyncTaskRecordRepository asyncTaskRecordRepository;
     private final MaterialParseTaskProcessor materialParseTaskProcessor;
-    private final Executor taskExecutor;
+    private final ThreadPoolTaskExecutor taskExecutor;
+    private final int claimBatchSize;
 
     public AsyncTaskScheduler(
             AsyncTaskRecordRepository asyncTaskRecordRepository,
             MaterialParseTaskProcessor materialParseTaskProcessor,
             @Value("${app.async.core-pool-size:2}") int corePoolSize,
             @Value("${app.async.max-pool-size:4}") int maxPoolSize,
-            @Value("${app.async.queue-capacity:20}") int queueCapacity
+            @Value("${app.async.queue-capacity:20}") int queueCapacity,
+            @Value("${app.async.claim-batch-size:10}") int claimBatchSize
     ) {
         this.asyncTaskRecordRepository = asyncTaskRecordRepository;
         this.materialParseTaskProcessor = materialParseTaskProcessor;
         this.taskExecutor = buildExecutor(corePoolSize, maxPoolSize, queueCapacity);
+        this.claimBatchSize = Math.max(1, claimBatchSize);
     }
 
-    private Executor buildExecutor(int corePoolSize, int maxPoolSize, int queueCapacity) {
+    private ThreadPoolTaskExecutor buildExecutor(int corePoolSize, int maxPoolSize, int queueCapacity) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(corePoolSize);
         executor.setMaxPoolSize(maxPoolSize);
         executor.setQueueCapacity(queueCapacity);
         executor.setThreadNamePrefix("async-task-");
-        executor.setRejectedExecutionHandler((r, e) ->
-                logger.warn("Async task rejected: queue full (size={})", e.getQueue().size()));
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        // Reliability first: when the pool is saturated, run on scheduler thread instead of dropping tasks.
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
@@ -50,14 +55,14 @@ public class AsyncTaskScheduler {
     public void processPendingTasks() {
         logger.debug("Checking for pending tasks...");
 
-        List<AsyncTaskRecord> pendingTasks = asyncTaskRecordRepository.findByStatus(TaskConstants.STATUS_PENDING);
+        List<AsyncTaskRecord> pendingTasks = asyncTaskRecordRepository.claimPendingTasks(claimBatchSize);
 
         if (pendingTasks.isEmpty()) {
             logger.debug("No pending tasks to process.");
             return;
         }
 
-        logger.info("Found {} pending tasks to process.", pendingTasks.size());
+        logger.info("Claimed {} pending tasks for processing.", pendingTasks.size());
 
         for (AsyncTaskRecord task : pendingTasks) {
             taskExecutor.execute(() -> {
@@ -69,5 +74,11 @@ public class AsyncTaskScheduler {
                 }
             });
         }
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        logger.info("Shutting down async task executor...");
+        taskExecutor.shutdown();
     }
 }

@@ -137,7 +137,8 @@ HTTP Request
 | `TokenService` | 接口：`generateToken`, `parseUserId` |
 | `LoginCommand` | DTO：登录请求，含 `@NotBlank` 校验 |
 | `LoginResult` | DTO：登录响应，含 `token` 和 `tokenType` |
-| `CreateMaterialCommand` | DTO：创建资料请求（当前未使用，预留） |
+| `GenerateQuizCommand` | DTO：组卷请求（`materialIds`、`questionType`、`difficulty`、`count`、`interviewMode`） |
+| `GeneratedQuizResult` | DTO：组卷响应（`questions`、`modelBrief`） |
 | `UploadMaterialResult` | DTO：上传资料响应，包含 `Material` 和 `AsyncTaskRecord` |
 
 **依赖**：`interview-domain` + `spring-context` + `spring-tx` + `spring-security-crypto` + `jakarta.validation-api`
@@ -657,7 +658,7 @@ Token 解析失败时完全静默，无法排查认证问题。
 | 认证服务 | `backend/interview-application/src/main/java/com/interview/application/service/AuthApplicationService.java` |
 | 资料服务 | `backend/interview-application/src/main/java/com/interview/application/service/MaterialApplicationService.java` |
 | 任务服务 | `backend/interview-application/src/main/java/com/interview/application/service/AsyncTaskApplicationService.java` |
-| LLM 网关接口 | `backend/interview-ai-gateway/src/main/java/com/interview/aigateway/client/LlmGateway.java` |
+| LLM 网关接口（Application Port） | `backend/interview-application/src/main/java/com/interview/application/port/LlmGateway.java` |
 | LLM Stub | `backend/interview-ai-gateway/src/main/java/com/interview/aigateway/impl/NoopLlmGateway.java` |
 | 应用配置 | `backend/interview-api/src/main/resources/application.yml` |
 | 数据库初始化 | `backend/sql/init.sql` |

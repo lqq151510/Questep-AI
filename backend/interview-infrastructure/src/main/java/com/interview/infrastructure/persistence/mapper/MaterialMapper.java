@@ -20,6 +20,14 @@ public interface MaterialMapper {
 
     List<Material> selectByCondition(MaterialPO condition);
 
+    int updateParseSuccess(
+            @Param("id") Long id,
+            @Param("contentHash") String contentHash,
+            @Param("analysisText") String analysisText
+    );
+
+    int updateParseFailure(@Param("id") Long id, @Param("parseErrorMsg") String parseErrorMsg);
+
     int deleteById(Long id);
 
     int deleteByIds(@Param("ids") List<Long> ids);

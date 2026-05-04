@@ -3,6 +3,7 @@ package com.interview.application.service;
 import com.interview.application.dto.LoginCommand;
 import com.interview.application.dto.LoginResult;
 import com.interview.application.dto.RegisterCommand;
+import com.interview.common.exception.UnauthorizedException;
 import com.interview.domain.model.User;
 import com.interview.domain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,7 +43,8 @@ class AuthApplicationServiceTest {
     @BeforeEach
     void setUp() {
         testPassword = "testPassword123";
-        testUser = new User(1L, "testUser", "encodedPasswordHash", 1);
+        LocalDateTime now = LocalDateTime.now();
+        testUser = new User(1L, "testUser", "test@example.com", "encodedPasswordHash", 1, now, now);
     }
 
     @Test
@@ -70,8 +73,8 @@ class AuthApplicationServiceTest {
 
         when(userRepository.findByUsername("nonexistent")).thenReturn(Optional.empty());
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
                 () -> authApplicationService.login(command)
         );
 
@@ -87,8 +90,8 @@ class AuthApplicationServiceTest {
         when(userRepository.findByUsername("testUser")).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("wrongPassword", "encodedPasswordHash")).thenReturn(false);
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
                 () -> authApplicationService.login(command)
         );
 
@@ -98,13 +101,14 @@ class AuthApplicationServiceTest {
     @Test
     @DisplayName("Test login fails when user is disabled")
     void testLoginUserDisabled() {
-        User disabledUser = new User(2L, "disabledUser", "encodedPassword", 0);
+        LocalDateTime now = LocalDateTime.now();
+        User disabledUser = new User(2L, "disabledUser", "disabled@example.com", "encodedPassword", 0, now, now);
         LoginCommand command = new LoginCommand("disabledUser", testPassword);
 
         when(userRepository.findByUsername("disabledUser")).thenReturn(Optional.of(disabledUser));
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
                 () -> authApplicationService.login(command)
         );
 
@@ -120,7 +124,8 @@ class AuthApplicationServiceTest {
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedNewPassword");
         when(userRepository.save("newUser", "new@example.com", "encodedNewPassword"))
-                .thenReturn(new User(3L, "newUser", "encodedNewPassword", 1));
+                .thenReturn(new User(3L, "newUser", "new@example.com", "encodedNewPassword", 1,
+                        LocalDateTime.now(), LocalDateTime.now()));
         when(tokenService.generateToken(3L, "newUser")).thenReturn("newUserToken");
 
         LoginResult result = authApplicationService.register(command);

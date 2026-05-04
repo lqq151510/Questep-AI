@@ -1,7 +1,8 @@
 package com.interview.application.service;
 
-import com.interview.aigateway.client.LlmGateway;
+import com.interview.application.port.LlmGateway;
 import com.interview.common.constant.TaskConstants;
+import com.interview.common.exception.ResourceNotFoundException;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
@@ -10,8 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 @Service
 public class MaterialParseTaskProcessor {
@@ -38,16 +44,23 @@ public class MaterialParseTaskProcessor {
 
             asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 10);
 
-            if (TaskConstants.TYPE_MATERIAL_PARSE.equals(task.taskType())) {
-                parseMaterial(task);
+            if (!TaskConstants.TYPE_MATERIAL_PARSE.equals(task.taskType())) {
+                throw new IllegalArgumentException("Unsupported task type: " + task.taskType());
             }
+            parseMaterial(task);
 
             asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_SUCCESS, 100);
             logger.info("Task completed successfully: taskNo={}", task.taskNo());
 
         } catch (Exception e) {
             logger.error("Error processing task: taskNo={}, error={}", task.taskNo(), e.getMessage(), e);
-            asyncTaskRecordRepository.updateError(task.id(), e.getMessage());
+            String errorMsg = summarizeError(e);
+            try {
+                materialRepository.markParseFailure(task.bizId(), errorMsg);
+            } catch (Exception updateMaterialError) {
+                logger.error("Failed to update material parse failure state: materialId={}", task.bizId(), updateMaterialError);
+            }
+            asyncTaskRecordRepository.updateError(task.id(), errorMsg);
         }
     }
 
@@ -57,27 +70,59 @@ public class MaterialParseTaskProcessor {
         asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 30);
 
         Material material = materialRepository.findById(task.bizId())
-                .orElseThrow(() -> new IllegalArgumentException("Material not found: " + task.bizId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found: " + task.bizId()));
 
         asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 50);
 
         String storageUrl = material.storageUrl();
-        if (storageUrl != null && Files.exists(Paths.get(storageUrl))) {
-            try {
-                String content = Files.readString(Paths.get(storageUrl));
-                String prompt = "Please analyze this learning material and summarize key points: " +
-                        "Material name: " + material.name() + "\n" +
-                        "Content: " + (content.length() > 1000 ? content.substring(0, 1000) : content);
-
-                logger.info("Calling LLM to analyze material: {}", material.name());
-                llmGateway.chat(prompt);
-
-            } catch (Exception e) {
-                logger.warn("Failed to read or analyze material content: {}", e.getMessage());
-            }
+        if (storageUrl == null || storageUrl.isBlank()) {
+            throw new IllegalStateException("Material storage path is empty: materialId=" + material.id());
         }
+        Path storagePath = Paths.get(storageUrl).normalize();
+        if (!Files.exists(storagePath) || !Files.isRegularFile(storagePath)) {
+            throw new IllegalStateException("Material file does not exist: " + storagePath);
+        }
+
+        String content;
+        try {
+            content = Files.readString(storagePath);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read material file: " + storagePath, ex);
+        }
+        if (content.isBlank()) {
+            throw new IllegalStateException("Material content is empty: materialId=" + material.id());
+        }
+
+        String prompt = "Please analyze this learning material and summarize key points: " +
+                "Material name: " + material.name() + "\n" +
+                "Content: " + (content.length() > 2000 ? content.substring(0, 2000) : content);
+        logger.info("Calling LLM to analyze material: {}", material.name());
+        String analysis = llmGateway.chat(prompt);
+        if (analysis == null || analysis.isBlank()) {
+            throw new IllegalStateException("LLM returned empty analysis for material: " + material.id());
+        }
+
+        materialRepository.markParseSuccess(material.id(), sha256Hex(content), analysis);
 
         asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 80);
         logger.info("Material parsing completed for id: {}", task.bizId());
+    }
+
+    private String summarizeError(Exception e) {
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = e.getClass().getSimpleName();
+        }
+        return message.length() > 500 ? message.substring(0, 500) : message;
+    }
+
+    private String sha256Hex(String content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(content.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hashed);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
     }
 }

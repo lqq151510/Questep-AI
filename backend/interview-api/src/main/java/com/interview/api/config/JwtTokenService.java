@@ -20,7 +20,7 @@ public class JwtTokenService implements TokenService {
 
     private final SecretKey key;
     private final long expiryMs;
-    public JwtTokenService(@Value("${app.jwt.secret:}") String secret,
+    public JwtTokenService(@Value("${app.jwt.secret}") String secret,
                            @Value("${app.jwt.expire-ms:86400000}") long expiryMs,
                            Environment environment) {
         validateSecret(secret, environment);

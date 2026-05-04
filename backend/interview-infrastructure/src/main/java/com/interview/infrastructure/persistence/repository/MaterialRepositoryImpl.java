@@ -11,6 +11,7 @@ import java.util.Optional;
 
 @Repository
 public class MaterialRepositoryImpl implements MaterialRepository {
+    private static final int MAX_PARSE_ERROR_LENGTH = 500;
 
     private final MaterialMapper materialMapper;
 
@@ -46,5 +47,22 @@ public class MaterialRepositoryImpl implements MaterialRepository {
     @Override
     public Optional<Material> findById(Long id) {
         return Optional.ofNullable(materialMapper.selectById(id));
+    }
+
+    @Override
+    public void markParseSuccess(Long id, String contentHash, String analysisText) {
+        materialMapper.updateParseSuccess(id, contentHash, analysisText);
+    }
+
+    @Override
+    public void markParseFailure(Long id, String errorMsg) {
+        String safeError = errorMsg;
+        if (safeError == null || safeError.isBlank()) {
+            safeError = "Unknown parsing failure";
+        }
+        if (safeError.length() > MAX_PARSE_ERROR_LENGTH) {
+            safeError = safeError.substring(0, MAX_PARSE_ERROR_LENGTH);
+        }
+        materialMapper.updateParseFailure(id, safeError);
     }
 }

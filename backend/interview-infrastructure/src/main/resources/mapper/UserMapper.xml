@@ -5,12 +5,15 @@
         <constructor>
             <idArg column="id" javaType="java.lang.Long"/>
             <arg column="username" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
             <arg column="password_hash" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
 
-    <sql id="userColumns">id,username,password_hash,status</sql>
+    <sql id="userColumns">id,username,email,password_hash,status,created_at,updated_at</sql>
 
     <sql id="userInsertColumns">
         <trim suffixOverrides=",">

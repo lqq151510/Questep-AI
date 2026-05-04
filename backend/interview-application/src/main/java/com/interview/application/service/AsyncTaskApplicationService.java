@@ -2,6 +2,7 @@ package com.interview.application.service;
 
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
+import com.interview.common.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -15,6 +16,6 @@ public class AsyncTaskApplicationService {
 
     public AsyncTaskRecord getByTaskNo(String taskNo) {
         return asyncTaskRecordRepository.findByTaskNo(taskNo)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
     }
 }
