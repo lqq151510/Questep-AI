@@ -17,15 +17,21 @@ import java.util.Date;
 public class JwtTokenService implements TokenService {
     private static final int MIN_SECRET_LENGTH = 32;
     private static final String SAMPLE_SECRET = "change-this-secret-change-this-secret";
+    private static final String TOKEN_TYPE_CLAIM = "token_type";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
 
     private final SecretKey key;
-    private final long expiryMs;
+    private final long accessExpiryMs;
+    private final long refreshExpiryMs;
     public JwtTokenService(@Value("${app.jwt.secret}") String secret,
-                           @Value("${app.jwt.expire-ms:86400000}") long expiryMs,
+                           @Value("${app.jwt.expire-ms:86400000}") long accessExpiryMs,
+                           @Value("${app.jwt.refresh-expire-ms:604800000}") long refreshExpiryMs,
                            Environment environment) {
         validateSecret(secret, environment);
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expiryMs = expiryMs;
+        this.accessExpiryMs = accessExpiryMs;
+        this.refreshExpiryMs = refreshExpiryMs;
     }
 
     private void validateSecret(String secret, Environment environment) {
@@ -48,17 +54,59 @@ public class JwtTokenService implements TokenService {
                             + secret.getBytes(StandardCharsets.UTF_8).length + " bytes");
         }
     }
+    @Override
     public String generateToken(Long userId, String username) {
-        Date now = new Date();
-        return Jwts.builder().subject(String.valueOf(userId)).claim("username", username)
-                .issuedAt(now).expiration(new Date(now.getTime() + expiryMs)).signWith(key).compact();
+        return buildToken(userId, username, ACCESS_TOKEN_TYPE, accessExpiryMs);
     }
+
+    @Override
+    public String generateRefreshToken(Long userId, String username) {
+        return buildToken(userId, username, REFRESH_TOKEN_TYPE, refreshExpiryMs);
+    }
+
+    private String buildToken(Long userId, String username, String tokenType, long ttlMs) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("username", username)
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + ttlMs))
+                .signWith(key)
+                .compact();
+    }
+
+    @Override
     public Long parseUserId(String token) {
-        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        return parseUserIdByType(token, ACCESS_TOKEN_TYPE);
+    }
+
+    @Override
+    public Long parseRefreshUserId(String token) {
+        return parseUserIdByType(token, REFRESH_TOKEN_TYPE);
+    }
+
+    private Long parseUserIdByType(String token, String expectedType) {
+        Claims claims = parseClaims(token);
+        String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
+        if (!expectedType.equals(tokenType)) {
+            throw new IllegalArgumentException("Unexpected token type");
+        }
         return Long.valueOf(claims.getSubject());
     }
+
+    @Override
     public long getExpireTime(String token) {
-        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+        Claims claims = parseClaims(token);
         return claims.getExpiration().getTime() - System.currentTimeMillis();
+    }
+
+    @Override
+    public long accessTokenExpireMs() {
+        return accessExpiryMs;
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 }

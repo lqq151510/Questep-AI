@@ -2,6 +2,8 @@ package com.interview.api.controller;
 
 import com.interview.application.dto.LoginCommand;
 import com.interview.application.dto.LoginResult;
+import com.interview.application.dto.LogoutCommand;
+import com.interview.application.dto.RefreshTokenCommand;
 import com.interview.application.dto.RegisterCommand;
 import com.interview.application.service.AuthApplicationService;
 import com.interview.application.service.TokenBlacklistService;
@@ -44,23 +46,37 @@ public class AuthController {
         return ApiResponse.ok(authApplicationService.register(command));
     }
 
+    @Operation(summary = "Refresh JWT tokens")
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResult> refresh(@Valid @RequestBody RefreshTokenCommand command) {
+        return ApiResponse.ok(authApplicationService.refresh(command.refreshToken()));
+    }
+
     @Operation(summary = "User logout", security = @SecurityRequirement(name = "Bearer Authentication"))
     @PostMapping("/logout")
     public ApiResponse<Void> logout(
             @Parameter(hidden = true) Authentication authentication,
-            @RequestHeader(value = "Authorization", required = false) String auth
+            @RequestHeader(value = "Authorization", required = false) String auth,
+            @RequestBody(required = false) @Valid LogoutCommand command
     ) {
         if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
             String token = auth.substring(7).trim();
-            try {
-                long expireTime = tokenService.getExpireTime(token);
-                if (expireTime > 0) {
-                    tokenBlacklistService.addToBlacklist(token, expireTime);
-                }
-            } catch (Exception ignored) {
-                // If token is invalid, just ignore and return success
-            }
+            blacklistToken(token);
+        }
+        if (command != null && StringUtils.hasText(command.refreshToken())) {
+            blacklistToken(command.refreshToken().trim());
         }
         return ApiResponse.ok(null);
+    }
+
+    private void blacklistToken(String token) {
+        try {
+            long expireTime = tokenService.getExpireTime(token);
+            if (expireTime > 0) {
+                tokenBlacklistService.addToBlacklist(token, expireTime);
+            }
+        } catch (Exception ignored) {
+            // If token is invalid, just ignore and return success
+        }
     }
 }

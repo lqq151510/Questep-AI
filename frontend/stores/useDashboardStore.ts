@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { initialDraftQuestions, seedMaterials, seedTasks } from "@/lib/dashboard-data";
 import { createLocalMaterial, mapRemoteMaterial, modeText, nowLabel } from "@/lib/dashboard-format";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import { fetchWithAuth } from "@/lib/interview-api";
 import type {
   ApiResponse,
   AsyncTaskRecord,
@@ -99,9 +99,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetchWithRetry("/api/v1/materials/upload", {
+      const response = await fetchWithAuth("/api/v1/materials/upload", {
         method: "POST",
-        headers: authHeaders(),
         body: formData
       });
       const payload = (await response.json()) as ApiResponse<UploadMaterialResult>;
@@ -123,7 +122,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   refreshMaterials: async () => {
     set({ apiState: "syncing" });
     try {
-      const response = await fetchWithRetry("/api/v1/materials", { cache: "no-store", headers: authHeaders() });
+      const response = await fetchWithAuth("/api/v1/materials", { cache: "no-store" });
       const payload = (await response.json()) as ApiResponse<RemoteMaterial[]>;
       if (!response.ok || !payload.success || !Array.isArray(payload.data)) throw new Error("invalid response");
 
@@ -158,12 +157,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
     set({ quizState: "syncing" });
     try {
-      const response = await fetchWithRetry("/api/v1/quizzes/generate", {
+      const response = await fetchWithAuth("/api/v1/quizzes/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders()
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           materialIds: remoteMaterialIds,
           questionType: questionMode,
@@ -182,12 +178,6 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
   }
 }));
-
-function authHeaders(): HeadersInit {
-  if (typeof window === "undefined") return {};
-  const token = window.localStorage.getItem("interview_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function createUploadTask(fileName: string): TaskItem {
   return {

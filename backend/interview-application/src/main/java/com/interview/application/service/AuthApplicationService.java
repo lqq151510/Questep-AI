@@ -36,7 +36,7 @@ public class AuthApplicationService {
         if (user.status() == null || user.status() != User.STATUS_ACTIVE || !passwordEncoder.matches(command.password(), user.passwordHash())) {
             throw new UnauthorizedException("Invalid username or password");
         }
-        return new LoginResult(tokenService.generateToken(user.id(), user.username()), "Bearer");
+        return issueTokens(user);
     }
 
     @Transactional
@@ -54,7 +54,27 @@ public class AuthApplicationService {
                 command.email(),
                 passwordEncoder.encode(command.password())
         );
-        return new LoginResult(tokenService.generateToken(user.id(), user.username()), "Bearer");
+        return issueTokens(user);
+    }
+
+    public LoginResult refresh(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new UnauthorizedException("Refresh token is required");
+        }
+        Long userId = tokenService.parseRefreshUserId(refreshToken);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+        if (user.status() == null || user.status() != User.STATUS_ACTIVE) {
+            throw new UnauthorizedException("Invalid refresh token");
+        }
+        return issueTokens(user);
+    }
+
+    private LoginResult issueTokens(User user) {
+        String accessToken = tokenService.generateToken(user.id(), user.username());
+        String refreshToken = tokenService.generateRefreshToken(user.id(), user.username());
+        long expiresInSeconds = Math.max(1L, tokenService.accessTokenExpireMs() / 1000L);
+        return new LoginResult(accessToken, refreshToken, "Bearer", expiresInSeconds);
     }
 
     private void validatePasswordStrength(String password) {

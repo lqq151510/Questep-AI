@@ -27,6 +27,10 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"demo_user","password":"demo123456"}' | jq -r '.data.token')
 
+REFRESH_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo_user","password":"demo123456"}' | jq -r '.data.refreshToken')
+
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/materials
 
 curl -X POST http://127.0.0.1:8080/api/v1/materials/upload \
@@ -43,4 +47,5 @@ Frontend local token:
 
 ```js
 localStorage.setItem("interview_token", "<login token>");
+localStorage.setItem("interview_refresh_token", "<refresh token>");
 ```

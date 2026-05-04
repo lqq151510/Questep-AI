@@ -55,15 +55,20 @@ class AuthApplicationServiceTest {
         when(userRepository.findByUsername("testUser")).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches(testPassword, "encodedPasswordHash")).thenReturn(true);
         when(tokenService.generateToken(1L, "testUser")).thenReturn("testToken123");
+        when(tokenService.generateRefreshToken(1L, "testUser")).thenReturn("refreshToken123");
+        when(tokenService.accessTokenExpireMs()).thenReturn(3_600_000L);
 
         LoginResult result = authApplicationService.login(command);
 
         assertNotNull(result);
         assertEquals("testToken123", result.token());
+        assertEquals("refreshToken123", result.refreshToken());
         assertEquals("Bearer", result.tokenType());
+        assertEquals(3600L, result.expiresInSeconds());
         verify(userRepository, times(1)).findByUsername("testUser");
         verify(passwordEncoder, times(1)).matches(testPassword, "encodedPasswordHash");
         verify(tokenService, times(1)).generateToken(1L, "testUser");
+        verify(tokenService, times(1)).generateRefreshToken(1L, "testUser");
     }
 
     @Test
@@ -127,11 +132,14 @@ class AuthApplicationServiceTest {
                 .thenReturn(new User(3L, "newUser", "new@example.com", "encodedNewPassword", 1,
                         LocalDateTime.now(), LocalDateTime.now()));
         when(tokenService.generateToken(3L, "newUser")).thenReturn("newUserToken");
+        when(tokenService.generateRefreshToken(3L, "newUser")).thenReturn("newUserRefreshToken");
+        when(tokenService.accessTokenExpireMs()).thenReturn(3_600_000L);
 
         LoginResult result = authApplicationService.register(command);
 
         assertNotNull(result);
         assertEquals("newUserToken", result.token());
+        assertEquals("newUserRefreshToken", result.refreshToken());
         verify(userRepository, times(1)).findByUsername("newUser");
         verify(userRepository, times(1)).findByEmail("new@example.com");
         verify(userRepository, times(1)).save("newUser", "new@example.com", "encodedNewPassword");
@@ -168,5 +176,31 @@ class AuthApplicationServiceTest {
 
         assertEquals("Email already exists", exception.getMessage());
         verify(userRepository, never()).save(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Test refresh returns new tokens for active user")
+    void testRefreshSuccess() {
+        when(tokenService.parseRefreshUserId("refreshToken")).thenReturn(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(tokenService.generateToken(1L, "testUser")).thenReturn("newAccessToken");
+        when(tokenService.generateRefreshToken(1L, "testUser")).thenReturn("newRefreshToken");
+        when(tokenService.accessTokenExpireMs()).thenReturn(3_600_000L);
+
+        LoginResult result = authApplicationService.refresh("refreshToken");
+
+        assertEquals("newAccessToken", result.token());
+        assertEquals("newRefreshToken", result.refreshToken());
+        assertEquals("Bearer", result.tokenType());
+    }
+
+    @Test
+    @DisplayName("Test refresh fails when token is blank")
+    void testRefreshBlankToken() {
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
+                () -> authApplicationService.refresh("  ")
+        );
+        assertEquals("Refresh token is required", exception.getMessage());
     }
 }
