@@ -16,24 +16,26 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | Next.js 15 + TypeScript + Tailwind CSS |
-| 网关/反向代理 | Nginx |
-| 后端核心 | Spring Boot 3.x + Spring MVC + Spring Validation |
-| 持久层 | MyBatis + MyBatis XML + PageHelper |
-| 安全 | Spring Security + JWT + RBAC |
-| 关系型数据库 | MySQL 8.x |
-| 向量检索 | Milvus（主）+ 可选 pgvector（演进） |
-| 缓存/会话 | Redis + Spring Session |
-| 任务与异步 | Spring Task / Quartz + RabbitMQ（增强） |
-| LLM 接入 | OpenAI（主）/ DeepSeek（备）/ Qwen-VL（图像），统一 LLM Gateway 封装 |
-| 韧性治理 | Resilience4j（重试/熔断/限流/隔离） |
-| API 标准化 | OpenAPI 3 + Problem Details（RFC 7807） |
-| 可观测性 | Micrometer + Prometheus + Grafana + OpenTelemetry |
-| 构建与测试 | Maven + JUnit 5 + Mockito + Spring Boot Test + Testcontainers |
-| 迁移与运维 | Flyway + Logback + Actuator |
-| 部署 | Docker Compose（起步）→ Kubernetes（增强） |
+
+| 层级      | 技术                                                            |
+| ------- | ------------------------------------------------------------- |
+| 前端      | Next.js 15 + TypeScript + Tailwind CSS                        |
+| 网关/反向代理 | Nginx                                                         |
+| 后端核心    | Spring Boot 3.x + Spring MVC + Spring Validation              |
+| 持久层     | MyBatis + MyBatis XML + PageHelper                            |
+| 安全      | Spring Security + JWT + RBAC                                  |
+| 关系型数据库  | MySQL 8.x                                                     |
+| 向量检索    | Milvus（主）+ 可选 pgvector（演进）                                    |
+| 缓存/会话   | Redis + Spring Session                                        |
+| 任务与异步   | Spring Task / Quartz + RabbitMQ（增强）                           |
+| LLM 接入  | OpenAI（主）/ DeepSeek（备）/ Qwen-VL（图像），统一 LLM Gateway 封装         |
+| 韧性治理    | Resilience4j（重试/熔断/限流/隔离）                                     |
+| API 标准化 | OpenAPI 3 + Problem Details（RFC 7807）                         |
+| 可观测性    | Micrometer + Prometheus + Grafana + OpenTelemetry             |
+| 构建与测试   | Maven + JUnit 5 + Mockito + Spring Boot Test + Testcontainers |
+| 迁移与运维   | Flyway + Logback + Actuator                                   |
+| 部署      | Docker Compose（起步）→ Kubernetes（增强）                            |
+
 
 ## 后端架构风格（保留传统核心）
 
@@ -53,6 +55,7 @@
 ## 模块划分
 
 ### 1. 资料管理模块
+
 - 上传 PDF/Word/MD/图片
 - 文档解析（异步任务）
 - 分块 + 向量化（Milvus）
@@ -60,6 +63,7 @@
 - 解析状态机（待处理/处理中/成功/失败）
 
 ### 2. 刷题引擎模块
+
 - 用户选择资料范围 + 出题策略（实时/缓存）
 - AI 生成题目（单选/多选/简答/编程）
 - 用户作答
@@ -68,6 +72,7 @@
 - 评分输出 Schema 校验 + 规则二次校验
 
 ### 3. 面试模拟模块
+
 - 岗位/技术栈/难度设定
 - WebSocket 面试会话
 - AI 面试官流式提问
@@ -75,18 +80,21 @@
 - 结束后异步生成综合报告
 
 ### 4. 学习分析模块
+
 - 刷题趋势统计（日/周/月）
 - 薄弱知识点识别
 - 学习建议生成
 - 报告快照归档（可追溯）
 
 ### 5. 错题本模块
+
 - 按知识点/时间筛选
 - 错题回看重做
 - 掌握状态管理
 - 反复错题统计
 
 ### 6. 用户与权限模块
+
 - 登录/注册
 - RBAC 权限模型（用户/管理员）
 - JWT + Refresh Token
@@ -139,9 +147,11 @@ prompts/
 ## 核心流程
 
 ### 刷题闭环
+
 上传资料 → 异步解析 → 分块向量化 → 选择范围/策略 → AI 出题 → 作答 → AI 评分解析 → 错题入库 → 复习
 
 ### 面试闭环
+
 设定岗位 → WebSocket 会话 → AI 连续提问 → 用户回答 → 流式互动 → 结束 → 异步生成报告
 
 ## API 与契约规范
@@ -189,17 +199,20 @@ backend/
 ## 部署演进路线
 
 ### 阶段 A（MVP，2-4 周）
+
 - 单体部署：Nginx + Spring Boot + MySQL + Redis + Milvus
 - 完成：资料管理、刷题、错题本、基础鉴权
 - 引入：基础缓存、基础调用日志
 
 ### 阶段 B（增强，4-8 周）
+
 - 引入 RabbitMQ 处理重任务
 - 完成面试模拟与学习分析
 - 上线 Prompt 版本管理与评测回归
 - 接入 Resilience4j
 
 ### 阶段 C（生产化，持续）
+
 - 容器化与 K8s 部署
 - OpenTelemetry + Prometheus + Grafana 全量观测
 - 模型路由优化（成本优先/质量优先策略）
@@ -211,3 +224,4 @@ backend/
 - 可扩展：通过 Adapter/Gateway 设计承接 AI 能力快速演进
 - 可运营：具备日志、指标、追踪、评测与成本治理基础
 - 可控风险：采用分阶段落地，避免一次性高风险改造
+

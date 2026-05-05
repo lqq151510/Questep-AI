@@ -11,6 +11,9 @@ import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
 import com.interview.domain.repository.MaterialRepository;
 import com.interview.domain.repository.QuestionRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +35,10 @@ public class QuizApplicationService {
     private static final String MODEL_NAME_FALLBACK = "fallback-local";
 
     private static final Map<String, String> QUESTION_TYPE_MAP = new LinkedHashMap<>();
+    private static final int MAX_QUESTIONS_PER_QUIZ = 10;
+    private static final int MIN_QUESTIONS_PER_QUIZ = 1;
+    private static final int MAX_DIFFICULTY = 5;
+    private static final int MIN_DIFFICULTY = 1;
 
     static {
         QUESTION_TYPE_MAP.put("choice", "SINGLE_CHOICE");
@@ -65,15 +72,28 @@ public class QuizApplicationService {
     }
 
     @Transactional
+    @CircuitBreaker(name = "llmGateway", fallbackMethod = "generateQuizFallback")
+    @Retry(name = "llmGateway")
+    @RateLimiter(name = "quizGeneration")
     public GeneratedQuizResult generate(Long userId, GenerateQuizCommand command) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId cannot be null");
+        }
+        if (command == null) {
+            throw new IllegalArgumentException("command cannot be null");
+        }
+        if (command.materialIds() == null || command.materialIds().isEmpty()) {
+            throw new IllegalArgumentException("materialIds cannot be null or empty");
+        }
+
         List<Material> materials = materialRepository.findByUserIdAndIds(userId, command.materialIds());
         if (materials.isEmpty()) {
             throw new IllegalArgumentException("No materials found for quiz generation");
         }
 
         String questionType = normalizeQuestionType(command.questionType());
-        int difficulty = command.difficulty() == null ? 3 : command.difficulty();
-        int count = command.count() == null ? 3 : command.count();
+        int difficulty = validateAndNormalizeDifficulty(command.difficulty());
+        int count = validateAndNormalizeCount(command.count());
         boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
         String traceId = "quiz-" + UUID.randomUUID().toString().substring(0, 8);
         String prompt = buildPrompt(materials, questionType, difficulty, count, interviewMode);
@@ -113,6 +133,66 @@ public class QuizApplicationService {
 
     public List<Question> recent(Long userId, int limit) {
         return questionRepository.findRecentByUser(userId, Math.max(1, Math.min(limit, 50)));
+    }
+
+    private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
+        logger.error("LLM Gateway circuit breaker triggered, using deterministic fallback: {}", throwable.getMessage());
+        
+        List<Material> materials = materialRepository.findByUserIdAndIds(userId, command.materialIds());
+        String questionType = normalizeQuestionType(command.questionType());
+        int difficulty = validateAndNormalizeDifficulty(command.difficulty());
+        int count = validateAndNormalizeCount(command.count());
+        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+        String traceId = "quiz-fallback-" + UUID.randomUUID().toString().substring(0, 8);
+        
+        List<Question> questions = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            Material material = materials.get(index % materials.size());
+            QuestionDraft draft = draftQuestion(material, questionType, difficulty, index, interviewMode);
+            questions.add(questionRepository.save(
+                    material.id(),
+                    userId,
+                    questionType,
+                    draft.stemText(),
+                    draft.referenceAnswer(),
+                    draft.analysisText(),
+                    difficulty,
+                    TaskConstants.SOURCE_TYPE_AI,
+                    "fallback-local"
+            ));
+        }
+        
+        return new GeneratedQuizResult(traceId, "LLM unavailable, circuit breaker activated. Generated questions using deterministic fallback templates.", questions);
+    }
+
+    private int validateAndNormalizeCount(Integer count) {
+        if (count == null) {
+            return 3;
+        }
+        if (count < MIN_QUESTIONS_PER_QUIZ) {
+            logger.warn("Quiz count {} below minimum {}, using minimum", count, MIN_QUESTIONS_PER_QUIZ);
+            return MIN_QUESTIONS_PER_QUIZ;
+        }
+        if (count > MAX_QUESTIONS_PER_QUIZ) {
+            logger.warn("Quiz count {} above maximum {}, using maximum", count, MAX_QUESTIONS_PER_QUIZ);
+            return MAX_QUESTIONS_PER_QUIZ;
+        }
+        return count;
+    }
+
+    private int validateAndNormalizeDifficulty(Integer difficulty) {
+        if (difficulty == null) {
+            return 3;
+        }
+        if (difficulty < MIN_DIFFICULTY) {
+            logger.warn("Difficulty {} below minimum {}, using minimum", difficulty, MIN_DIFFICULTY);
+            return MIN_DIFFICULTY;
+        }
+        if (difficulty > MAX_DIFFICULTY) {
+            logger.warn("Difficulty {} above maximum {}, using maximum", difficulty, MAX_DIFFICULTY);
+            return MAX_DIFFICULTY;
+        }
+        return difficulty;
     }
 
     private String normalizeQuestionType(String value) {

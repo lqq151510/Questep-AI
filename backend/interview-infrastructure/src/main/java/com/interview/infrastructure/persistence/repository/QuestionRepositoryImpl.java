@@ -39,6 +39,7 @@ public class QuestionRepositoryImpl implements QuestionRepository {
         po.setDifficulty(difficulty);
         po.setSourceType(sourceType);
         po.setModelName(modelName);
+        po.setStatus(1);
         questionMapper.insert(po);
         return questionMapper.selectById(po.getId());
     }

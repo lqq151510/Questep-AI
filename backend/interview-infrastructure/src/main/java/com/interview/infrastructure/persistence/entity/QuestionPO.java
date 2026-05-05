@@ -8,6 +8,7 @@ public class QuestionPO {
     private Long creatorUserId;
     private String questionType;
     private String stemText;
+    private String optionsJson;
     private String referenceAnswer;
     private String analysisText;
     private Integer difficulty;
@@ -27,6 +28,8 @@ public class QuestionPO {
     public void setQuestionType(String questionType) { this.questionType = questionType; }
     public String getStemText() { return stemText; }
     public void setStemText(String stemText) { this.stemText = stemText; }
+    public String getOptionsJson() { return optionsJson; }
+    public void setOptionsJson(String optionsJson) { this.optionsJson = optionsJson; }
     public String getReferenceAnswer() { return referenceAnswer; }
     public void setReferenceAnswer(String referenceAnswer) { this.referenceAnswer = referenceAnswer; }
     public String getAnalysisText() { return analysisText; }

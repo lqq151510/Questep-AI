@@ -1,9 +1,13 @@
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BrainCircuit, Settings2, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { navItems } from "@/lib/dashboard-data";
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="sidebar" aria-label="主导航">
       <div className="brand">
@@ -19,11 +23,16 @@ export function Sidebar() {
       <nav className="nav-list">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isActive = pathname === item.href || (item.href !== "/home" && pathname?.startsWith(item.href));
           return (
-            <button className={item.active ? "nav-item active" : "nav-item"} key={item.label} type="button">
+            <Link
+              href={item.href}
+              className={isActive ? "nav-item active" : "nav-item"}
+              key={item.label}
+            >
               <Icon size={18} />
               <span>{item.label}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>

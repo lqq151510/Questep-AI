@@ -73,12 +73,12 @@ export const seedTasks: TaskItem[] = [
 ];
 
 export const navItems: NavItem[] = [
-  { label: "任务台", icon: Gauge, active: true },
-  { label: "资料库", icon: Database, active: false },
-  { label: "刷题", icon: ClipboardList, active: false },
-  { label: "面试", icon: Mic2, active: false },
-  { label: "错题本", icon: BookOpenCheck, active: false },
-  { label: "诊断", icon: BarChart3, active: false }
+  { label: "任务台", icon: Gauge, href: "/home", active: true },
+  { label: "资料库", icon: Database, href: "/knowledge-base", active: false },
+  { label: "刷题", icon: ClipboardList, href: "/question-bank", active: false },
+  { label: "面试", icon: Mic2, href: "/ai-interviewer", active: false },
+  { label: "错题本", icon: BookOpenCheck, href: "/wrong-answers", active: false },
+  { label: "诊断", icon: BarChart3, href: "/ai-qa", active: false }
 ];
 
 export const knowledge: KnowledgeItem[] = [

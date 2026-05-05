@@ -23,19 +23,33 @@ public class AuthApplicationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final LoginAttemptService loginAttemptService;
 
-    public AuthApplicationService(UserRepository userRepository, PasswordEncoder passwordEncoder, TokenService tokenService) {
+    public AuthApplicationService(UserRepository userRepository, PasswordEncoder passwordEncoder, TokenService tokenService, LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     public LoginResult login(LoginCommand command) {
-        User user = userRepository.findByUsername(command.username())
-                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
-        if (user.status() == null || user.status() != User.STATUS_ACTIVE || !passwordEncoder.matches(command.password(), user.passwordHash())) {
-            throw new UnauthorizedException("Invalid username or password");
+        if (loginAttemptService.isBlocked(command.username())) {
+            long remainingMinutes = loginAttemptService.getRemainingLockoutMinutes(command.username());
+            throw new UnauthorizedException("账户已锁定，请" + remainingMinutes + "分钟后重试");
         }
+
+        User user = userRepository.findByUsername(command.username())
+                .orElseThrow(() -> {
+                    loginAttemptService.recordFailedAttempt(command.username());
+                    return new UnauthorizedException("用户名或密码错误");
+                });
+
+        if (user.status() == null || user.status() != User.STATUS_ACTIVE || !passwordEncoder.matches(command.password(), user.passwordHash())) {
+            loginAttemptService.recordFailedAttempt(command.username());
+            throw new UnauthorizedException("用户名或密码错误");
+        }
+
+        loginAttemptService.recordSuccessfulAttempt(command.username());
         return issueTokens(user);
     }
 

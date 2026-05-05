@@ -36,6 +36,7 @@ export type KnowledgeItem = {
 export type NavItem = {
   label: string;
   icon: LucideIcon;
+  href: string;
   active: boolean;
 };
 

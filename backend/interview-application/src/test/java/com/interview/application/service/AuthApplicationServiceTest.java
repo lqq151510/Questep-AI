@@ -34,6 +34,9 @@ class AuthApplicationServiceTest {
     @Mock
     private TokenService tokenService;
 
+    @Mock
+    private LoginAttemptService loginAttemptService;
+
     @InjectMocks
     private AuthApplicationService authApplicationService;
 
@@ -52,6 +55,7 @@ class AuthApplicationServiceTest {
     void testLoginSuccess() {
         LoginCommand command = new LoginCommand("testUser", testPassword);
 
+        when(loginAttemptService.isBlocked("testUser")).thenReturn(false);
         when(userRepository.findByUsername("testUser")).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches(testPassword, "encodedPasswordHash")).thenReturn(true);
         when(tokenService.generateToken(1L, "testUser")).thenReturn("testToken123");
@@ -65,10 +69,29 @@ class AuthApplicationServiceTest {
         assertEquals("refreshToken123", result.refreshToken());
         assertEquals("Bearer", result.tokenType());
         assertEquals(3600L, result.expiresInSeconds());
+        verify(loginAttemptService, times(1)).isBlocked("testUser");
         verify(userRepository, times(1)).findByUsername("testUser");
         verify(passwordEncoder, times(1)).matches(testPassword, "encodedPasswordHash");
         verify(tokenService, times(1)).generateToken(1L, "testUser");
         verify(tokenService, times(1)).generateRefreshToken(1L, "testUser");
+        verify(loginAttemptService, times(1)).recordSuccessfulAttempt("testUser");
+    }
+
+    @Test
+    @DisplayName("Test login fails when user is blocked")
+    void testLoginBlocked() {
+        LoginCommand command = new LoginCommand("testUser", testPassword);
+
+        when(loginAttemptService.isBlocked("testUser")).thenReturn(true);
+        when(loginAttemptService.getRemainingLockoutMinutes("testUser")).thenReturn(15L);
+
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
+                () -> authApplicationService.login(command)
+        );
+
+        assertEquals("账户已锁定，请15分钟后重试", exception.getMessage());
+        verify(userRepository, never()).findByUsername(anyString());
     }
 
     @Test
@@ -76,6 +99,7 @@ class AuthApplicationServiceTest {
     void testLoginUserNotFound() {
         LoginCommand command = new LoginCommand("nonexistent", testPassword);
 
+        when(loginAttemptService.isBlocked("nonexistent")).thenReturn(false);
         when(userRepository.findByUsername("nonexistent")).thenReturn(Optional.empty());
 
         UnauthorizedException exception = assertThrows(
@@ -83,7 +107,8 @@ class AuthApplicationServiceTest {
                 () -> authApplicationService.login(command)
         );
 
-        assertEquals("Invalid username or password", exception.getMessage());
+        assertEquals("用户名或密码错误", exception.getMessage());
+        verify(loginAttemptService, times(1)).recordFailedAttempt("nonexistent");
         verify(passwordEncoder, never()).matches(anyString(), anyString());
     }
 
@@ -92,6 +117,7 @@ class AuthApplicationServiceTest {
     void testLoginInvalidPassword() {
         LoginCommand command = new LoginCommand("testUser", "wrongPassword");
 
+        when(loginAttemptService.isBlocked("testUser")).thenReturn(false);
         when(userRepository.findByUsername("testUser")).thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("wrongPassword", "encodedPasswordHash")).thenReturn(false);
 
@@ -100,7 +126,8 @@ class AuthApplicationServiceTest {
                 () -> authApplicationService.login(command)
         );
 
-        assertEquals("Invalid username or password", exception.getMessage());
+        assertEquals("用户名或密码错误", exception.getMessage());
+        verify(loginAttemptService, times(1)).recordFailedAttempt("testUser");
     }
 
     @Test
@@ -110,6 +137,7 @@ class AuthApplicationServiceTest {
         User disabledUser = new User(2L, "disabledUser", "disabled@example.com", "encodedPassword", 0, now, now);
         LoginCommand command = new LoginCommand("disabledUser", testPassword);
 
+        when(loginAttemptService.isBlocked("disabledUser")).thenReturn(false);
         when(userRepository.findByUsername("disabledUser")).thenReturn(Optional.of(disabledUser));
 
         UnauthorizedException exception = assertThrows(
@@ -117,7 +145,8 @@ class AuthApplicationServiceTest {
                 () -> authApplicationService.login(command)
         );
 
-        assertEquals("Invalid username or password", exception.getMessage());
+        assertEquals("用户名或密码错误", exception.getMessage());
+        verify(loginAttemptService, times(1)).recordFailedAttempt("disabledUser");
     }
 
     @Test

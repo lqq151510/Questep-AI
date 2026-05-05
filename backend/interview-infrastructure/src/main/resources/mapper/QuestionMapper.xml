@@ -18,8 +18,25 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="questionPOMap" type="com.interview.infrastructure.persistence.entity.QuestionPO">
+        <id property="id" column="id"/>
+        <result property="materialId" column="material_id"/>
+        <result property="creatorUserId" column="creator_user_id"/>
+        <result property="questionType" column="question_type"/>
+        <result property="stemText" column="stem_text"/>
+        <result property="optionsJson" column="options_json"/>
+        <result property="referenceAnswer" column="reference_answer"/>
+        <result property="analysisText" column="analysis_text"/>
+        <result property="difficulty" column="difficulty"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="modelName" column="model_name"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
     <sql id="questionColumns">
-        id,material_id,creator_user_id,question_type,stem_text,reference_answer,analysis_text,difficulty,source_type,model_name,created_at,updated_at
+        id,material_id,creator_user_id,question_type,stem_text,options_json,reference_answer,analysis_text,difficulty,source_type,model_name,status,created_at,updated_at
     </sql>
 
     <sql id="questionInsertColumns">
@@ -28,11 +45,13 @@
             <if test="creatorUserId != null">creator_user_id,</if>
             question_type,
             stem_text,
+            <if test="optionsJson != null">options_json,</if>
             <if test="referenceAnswer != null">reference_answer,</if>
             <if test="analysisText != null">analysis_text,</if>
             <if test="difficulty != null">difficulty,</if>
             <if test="sourceType != null">source_type,</if>
             <if test="modelName != null">model_name,</if>
+            <if test="status != null">status,</if>
         </trim>
     </sql>
 
@@ -42,11 +61,13 @@
             <if test="creatorUserId != null">#{creatorUserId},</if>
             #{questionType},
             #{stemText},
+            <if test="optionsJson != null">#{optionsJson},</if>
             <if test="referenceAnswer != null">#{referenceAnswer},</if>
             <if test="analysisText != null">#{analysisText},</if>
             <if test="difficulty != null">#{difficulty},</if>
             <if test="sourceType != null">#{sourceType},</if>
             <if test="modelName != null">#{modelName},</if>
+            <if test="status != null">#{status},</if>
         </trim>
     </sql>
 
@@ -66,11 +87,13 @@
             <if test="creatorUserId != null">creator_user_id = #{creatorUserId},</if>
             <if test="questionType != null">question_type = #{questionType},</if>
             <if test="stemText != null">stem_text = #{stemText},</if>
+            <if test="optionsJson != null">options_json = #{optionsJson},</if>
             <if test="referenceAnswer != null">reference_answer = #{referenceAnswer},</if>
             <if test="analysisText != null">analysis_text = #{analysisText},</if>
             <if test="difficulty != null">difficulty = #{difficulty},</if>
             <if test="sourceType != null">source_type = #{sourceType},</if>
             <if test="modelName != null">model_name = #{modelName},</if>
+            <if test="status != null">status = #{status},</if>
             updated_at = CURRENT_TIMESTAMP
         </set>
         WHERE id = #{id}

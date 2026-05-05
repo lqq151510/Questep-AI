@@ -31,6 +31,9 @@ public class OpenAiLlmGateway implements LlmGateway {
             @Value("${app.llm.retry.max-attempts:3}") int maxAttempts,
             @Value("${app.llm.retry.backoff-ms:500}") long retryBackoffMs
     ) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("app.llm.api-key is required for provider=openai");
+        }
         this.restClient = builder.baseUrl(normalizeBaseUrl(baseUrl)).build();
         this.apiKey = apiKey;
         this.model = model;

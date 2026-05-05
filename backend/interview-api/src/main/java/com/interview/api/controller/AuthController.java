@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
     private final AuthApplicationService authApplicationService;
     private final TokenBlacklistService tokenBlacklistService;
     private final TokenService tokenService;
@@ -75,8 +79,8 @@ public class AuthController {
             if (expireTime > 0) {
                 tokenBlacklistService.addToBlacklist(token, expireTime);
             }
-        } catch (Exception ignored) {
-            // If token is invalid, just ignore and return success
+        } catch (Exception ex) {
+            logger.warn("Failed to blacklist token: {}", ex.getMessage());
         }
     }
 }
