@@ -9,6 +9,7 @@ JWT_SECRET=<your-secret-at-least-32-chars> mvn -pl interview-api spring-boot:run
 ```
 
 > **⚠️ JWT_SECRET 是必填环境变量**，长度至少 32 字节，否则应用无法启动。生产环境请使用强随机密钥，切勿使用示例值。
+> 本地默认使用 `LLM_PROVIDER=noop`，可以无模型密钥启动；接入真实 OpenAI 兼容模型时再显式设置 `LLM_PROVIDER=openai`、`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`。
 
 ## Local infrastructure
 
@@ -33,6 +34,7 @@ REFRESH_TOKEN=$(curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
 
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/materials
 
+# v1 upload parsing supports text formats: TXT / MD / CSV / JSON
 curl -X POST http://127.0.0.1:8080/api/v1/materials/upload \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@README.md"

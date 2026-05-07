@@ -31,7 +31,7 @@ import java.util.UUID;
 public class MaterialController {
     private static final long MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "PDF", "TXT", "MD", "DOC", "DOCX", "PPT", "PPTX", "XLS", "XLSX", "CSV", "JSON", "BIN"
+            "TXT", "MD", "CSV", "JSON"
     );
 
     private final MaterialApplicationService materialApplicationService;
@@ -48,7 +48,7 @@ public class MaterialController {
         String original = sanitizeFilename(file.getOriginalFilename());
         String ext = extractExtension(original);
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
-            throw new IllegalArgumentException("File type not allowed: " + ext + ". Allowed types: " + ALLOWED_EXTENSIONS);
+            throw new IllegalArgumentException("Only text formats are supported in v1: " + ALLOWED_EXTENSIONS);
         }
         Path dir = Path.of(baseDir, LocalDate.now().toString());
         Files.createDirectories(dir);

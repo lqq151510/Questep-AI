@@ -51,7 +51,8 @@ export function createLocalMaterial(file: File, id = `mat-${Date.now()}`): Mater
     progress: 8,
     chunks: Math.max(16, Math.round(file.size / 16000)),
     score: 62,
-    updatedAt: nowLabel()
+    updatedAt: nowLabel(),
+    detail: "等待后端解析任务确认"
   };
 }
 
@@ -66,7 +67,8 @@ export function mapRemoteMaterial(item: RemoteMaterial, index: number): Material
     progress: status === "ready" ? 100 : status === "failed" ? 100 : 64,
     chunks: 32 + index * 9,
     score: status === "failed" ? 48 : 82 + (index % 3) * 4,
-    updatedAt: formatRemoteTime(item.updatedAt)
+    updatedAt: formatRemoteTime(item.updatedAt),
+    detail: item.parseErrorMsg ?? undefined
   };
 }
 

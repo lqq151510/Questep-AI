@@ -2,19 +2,21 @@ import { create } from "zustand";
 
 import { initialDraftQuestions, seedMaterials, seedTasks } from "@/lib/dashboard-data";
 import { createLocalMaterial, mapRemoteMaterial, modeText, nowLabel } from "@/lib/dashboard-format";
-import { fetchWithAuth } from "@/lib/interview-api";
+import {
+  generateQuiz as requestGenerateQuiz,
+  getAsyncTask,
+  listMaterials as requestListMaterials,
+  toErrorMessage,
+  uploadMaterial as requestUploadMaterial,
+  type BackendAsyncTask
+} from "@/lib/interview-api";
 import type {
-  ApiResponse,
-  AsyncTaskRecord,
-  GeneratedQuizResult,
   MaterialFilter,
   MaterialItem,
   QuestionMode,
-  RemoteMaterial,
   RemoteState,
   TaskItem,
-  TaskStatus,
-  UploadMaterialResult
+  TaskStatus
 } from "@/types/dashboard";
 
 type DashboardState = {
@@ -39,6 +41,8 @@ type DashboardState = {
   generateQuestions: () => Promise<void>;
 };
 
+type DashboardSetter = (updater: (state: DashboardState) => Partial<DashboardState>) => void;
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
   materials: seedMaterials,
   tasks: seedTasks,
@@ -57,24 +61,21 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   tickProgress: () =>
     set((state) => ({
       materials: state.materials.map((item) => {
-        if (item.status !== "parsing") return item;
-        const nextProgress = Math.min(item.progress + 4, 100);
+        if (item.status !== "parsing" || !item.id.startsWith("mat-")) return item;
+        const nextProgress = Math.min(item.progress + 4, 96);
         return {
           ...item,
           progress: nextProgress,
-          status: nextProgress >= 100 ? "ready" : "parsing",
-          score: nextProgress >= 100 ? Math.max(item.score, 86) : item.score,
-          updatedAt: nextProgress >= 100 ? nowLabel() : item.updatedAt
+          updatedAt: nowLabel()
         };
       }),
       tasks: state.tasks.map((item) => {
-        if (item.status !== "running") return item;
-        const nextProgress = Math.min(item.progress + 5, 100);
+        if (item.status !== "running" || !item.traceId.startsWith("trc-")) return item;
+        const nextProgress = Math.min(item.progress + 5, 96);
         return {
           ...item,
           progress: nextProgress,
-          status: nextProgress >= 100 ? "done" : "running",
-          duration: nextProgress >= 100 ? "02:14" : item.duration
+          duration: "本地模拟中"
         };
       })
     })),
@@ -97,17 +98,13 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }));
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetchWithAuth("/api/v1/materials/upload", {
-        method: "POST",
-        body: formData
-      });
-      const payload = (await response.json()) as ApiResponse<UploadMaterialResult>;
-      if (!response.ok || !payload.success || !payload.data?.material) throw new Error(payload.message);
+      const result = await requestUploadMaterial(file);
+      if (!result.material) {
+        throw new Error("上传响应缺少资料信息");
+      }
 
-      const remoteMaterial = mapRemoteMaterial(payload.data.material, 0);
-      const remoteTask = mapUploadTask(payload.data.task, remoteMaterial.name, optimisticTask);
+      const remoteMaterial = mapRemoteMaterial(result.material, 0);
+      const remoteTask = mapUploadTask(result.task, remoteMaterial.name, optimisticTask);
 
       set((state) => ({
         apiState: "online",
@@ -115,18 +112,27 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         tasks: state.tasks.map((item) => (item.id === optimisticTask.id ? remoteTask : item)),
         selectedMaterialIds: state.selectedMaterialIds.map((id) => (id === optimisticId ? remoteMaterial.id : id))
       }));
-    } catch {
-      set({ apiState: "offline" });
+
+      if (result.task?.taskNo) {
+        void pollTaskStatus(result.task.taskNo, remoteMaterial.id, remoteMaterial.name, set);
+      }
+    } catch (error) {
+      const detail = toErrorMessage(error, "上传失败，已保留本地记录");
+      set((state) => ({
+        apiState: "offline",
+        materials: state.materials.map((item) =>
+          item.id === optimisticId ? { ...item, status: "failed", progress: 100, detail } : item
+        ),
+        tasks: state.tasks.map((item) =>
+          item.id === optimisticTask.id ? { ...item, status: "failed", progress: 100, duration: "失败", detail } : item
+        )
+      }));
     }
   },
   refreshMaterials: async () => {
     set({ apiState: "syncing" });
     try {
-      const response = await fetchWithAuth("/api/v1/materials", { cache: "no-store" });
-      const payload = (await response.json()) as ApiResponse<RemoteMaterial[]>;
-      if (!response.ok || !payload.success || !Array.isArray(payload.data)) throw new Error("invalid response");
-
-      const remoteMaterials = payload.data.map(mapRemoteMaterial);
+      const remoteMaterials = (await requestListMaterials()).map(mapRemoteMaterial);
 
       if (remoteMaterials.length > 0) {
         set((state) => {
@@ -157,22 +163,17 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
     set({ quizState: "syncing" });
     try {
-      const response = await fetchWithAuth("/api/v1/quizzes/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          materialIds: remoteMaterialIds,
-          questionType: questionMode,
-          difficulty,
-          count: 3,
-          interviewMode
-        })
+      const result = await requestGenerateQuiz({
+        materialIds: remoteMaterialIds,
+        questionType: questionMode,
+        difficulty,
+        count: 3,
+        interviewMode
       });
-      const payload = (await response.json()) as ApiResponse<GeneratedQuizResult>;
-      if (!response.ok || !payload.success || !payload.data?.questions?.length) {
-        throw new Error(payload.message || "quiz generation failed");
+      if (!result.questions?.length) {
+        throw new Error("quiz generation returned no questions");
       }
-      set({ draftQuestions: payload.data.questions.map((question) => question.stemText), quizState: "online" });
+      set({ draftQuestions: result.questions.map((question) => question.stemText), quizState: "online" });
     } catch {
       set({ draftQuestions: createLocalDraftQuestions(), quizState: "offline" });
     }
@@ -187,20 +188,23 @@ function createUploadTask(fileName: string): TaskItem {
     status: "running",
     progress: 8,
     traceId: `trc-${Math.random().toString(16).slice(2, 7)}`,
-    duration: "00:03"
+    duration: "等待后端确认",
+    detail: "上传请求已发出"
   };
 }
 
-function mapUploadTask(task: AsyncTaskRecord | undefined, materialName: string, fallback: TaskItem): TaskItem {
-  if (!task) return fallback;
+function mapUploadTask(task: BackendAsyncTask | undefined, materialName: string, fallback?: TaskItem): TaskItem {
+  if (!task) return fallback ?? createUploadTask(materialName);
+  const status = normalizeTaskStatus(task.status);
   return {
-    id: task.taskNo ?? fallback.id,
-    title: task.taskType === "MATERIAL_PARSE" ? "资料解析任务" : task.taskType ?? fallback.title,
+    id: task.taskNo ?? fallback?.id ?? `task-${String(Date.now()).slice(-5)}`,
+    title: task.taskType === "MATERIAL_PARSE" ? "资料解析任务" : task.taskType ?? fallback?.title ?? "异步任务",
     materialName,
-    status: normalizeTaskStatus(task.status),
-    progress: task.progress ?? fallback.progress,
-    traceId: task.taskNo ?? fallback.traceId,
-    duration: task.status === "DONE" ? "已完成" : "已入队"
+    status,
+    progress: task.progress ?? fallback?.progress ?? statusProgress(status),
+    traceId: task.taskNo ?? fallback?.traceId ?? "pending-task",
+    duration: statusDuration(status),
+    detail: task.errorMsg ?? fallback?.detail
   };
 }
 
@@ -210,6 +214,68 @@ function normalizeTaskStatus(status?: string): TaskStatus {
   if (value.includes("fail") || value.includes("error")) return "failed";
   if (value.includes("pending") || value.includes("queue")) return "queued";
   return "running";
+}
+
+function statusProgress(status: TaskStatus) {
+  if (status === "done" || status === "failed") return 100;
+  if (status === "queued") return 10;
+  return 60;
+}
+
+function statusDuration(status: TaskStatus) {
+  return {
+    done: "已完成",
+    failed: "失败",
+    queued: "已入队",
+    running: "处理中"
+  }[status];
+}
+
+async function pollTaskStatus(taskNo: string, materialId: string, materialName: string, set: DashboardSetter) {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    await delay(2500);
+    try {
+      const task = await getAsyncTask(taskNo);
+      const normalizedStatus = normalizeTaskStatus(task.status);
+      set((state) => ({
+        apiState: "online",
+        tasks: state.tasks.map((item) => (item.id === taskNo ? mapUploadTask(task, materialName, item) : item)),
+        materials: state.materials.map((item) =>
+          item.id === materialId ? applyTaskStateToMaterial(item, task, normalizedStatus) : item
+        )
+      }));
+      if (normalizedStatus === "done" || normalizedStatus === "failed") {
+        return;
+      }
+    } catch (error) {
+      const detail = toErrorMessage(error, "任务状态刷新失败");
+      set((state) => ({
+        apiState: "offline",
+        tasks: state.tasks.map((item) => (item.id === taskNo ? { ...item, detail } : item))
+      }));
+      return;
+    }
+  }
+}
+
+function applyTaskStateToMaterial(item: MaterialItem, task: BackendAsyncTask, status: TaskStatus): MaterialItem {
+  if (status === "done") {
+    return { ...item, status: "ready", progress: 100, score: Math.max(item.score, 86), updatedAt: nowLabel(), detail: "解析完成" };
+  }
+  if (status === "failed") {
+    return { ...item, status: "failed", progress: 100, updatedAt: nowLabel(), detail: task.errorMsg ?? "解析失败" };
+  }
+  return {
+    ...item,
+    status: "parsing",
+    progress: Math.max(item.progress, task.progress ?? statusProgress(status)),
+    updatedAt: nowLabel(),
+    detail: status === "queued" ? "任务已入队" : "后端解析中"
+  };
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function createLocalDraftQuestions() {

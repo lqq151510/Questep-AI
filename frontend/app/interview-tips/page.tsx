@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbulb, RefreshCw, Sparkles } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { useToast } from "@/components/new-ui/ToastProvider";
@@ -50,7 +50,7 @@ export default function InterviewTipsPage() {
   const [tips, setTips] = useState<Tip[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [materials, questions] = await Promise.all([listMaterials(), listQuestions(100)]);
@@ -62,11 +62,11 @@ export default function InterviewTipsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   const visibleTips = useMemo(() => {
     if (activeCategory === "全部") {

@@ -12,8 +12,8 @@ import type { KnowledgeItem, MaterialItem, NavItem, TaskItem } from "@/types/das
 export const seedMaterials: MaterialItem[] = [
   {
     id: "mat-java",
-    name: "Java 并发面经.pdf",
-    type: "PDF",
+    name: "Java 并发面经.md",
+    type: "MD",
     status: "ready",
     progress: 100,
     chunks: 128,
@@ -32,8 +32,8 @@ export const seedMaterials: MaterialItem[] = [
   },
   {
     id: "mat-mysql",
-    name: "MySQL 索引与事务.docx",
-    type: "DOCX",
+    name: "MySQL 索引与事务.csv",
+    type: "CSV",
     status: "parsing",
     progress: 64,
     chunks: 43,
@@ -46,7 +46,7 @@ export const seedTasks: TaskItem[] = [
   {
     id: "task-9842",
     title: "资料切分与向量化",
-    materialName: "MySQL 索引与事务.docx",
+    materialName: "MySQL 索引与事务.csv",
     status: "running",
     progress: 64,
     traceId: "trc-7a91c",
@@ -55,7 +55,7 @@ export const seedTasks: TaskItem[] = [
   {
     id: "task-9731",
     title: "Java 并发题库生成",
-    materialName: "Java 并发面经.pdf",
+    materialName: "Java 并发面经.md",
     status: "done",
     progress: 100,
     traceId: "trc-29bd4",

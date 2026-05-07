@@ -54,7 +54,7 @@ export function MaterialPanel() {
             <UploadCloud size={17} />
             导入
           </Button>
-          <input ref={fileInputRef} className="visually-hidden" onChange={handleUpload} type="file" />
+          <input ref={fileInputRef} accept=".txt,.md,.csv,.json" className="visually-hidden" onChange={handleUpload} type="file" />
         </div>
       </div>
 
@@ -110,6 +110,7 @@ export function MaterialPanel() {
               <span>{item.score}%</span>
               <span>{item.updatedAt}</span>
             </div>
+            {item.detail && <p className="material-detail">{item.detail}</p>}
           </article>
         ))}
       </div>

@@ -6,6 +6,7 @@ import { PageHero } from "@/components/new-ui/PageHero";
 import { useToast } from "@/components/new-ui/ToastProvider";
 import {
   generateQuiz,
+  getAsyncTask,
   listMaterials,
   toErrorMessage,
   uploadMaterial,
@@ -92,6 +93,19 @@ export default function KnowledgeBasePage() {
     void refresh();
   }, [refresh]);
 
+  const refreshAfterTaskSettles = useCallback(async (taskNo: string) => {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await delay(2500);
+      const task = await getAsyncTask(taskNo);
+      const status = String(task.status ?? "").toUpperCase();
+      if (status === "SUCCESS" || status === "FAILED") {
+        showToast(status === "SUCCESS" ? "资料解析完成" : task.errorMsg ?? "资料解析失败");
+        await refresh();
+        return;
+      }
+    }
+  }, [refresh, showToast]);
+
   const visibleMaterials = useMemo(() => {
     const query = keyword.trim().toLowerCase();
     if (!query) return materials;
@@ -123,6 +137,9 @@ export default function KnowledgeBasePage() {
       const result = await uploadMaterial(file);
       showToast(result.task?.taskNo ? `上传成功，任务已入队：${result.task.taskNo}` : "上传成功，任务已入队");
       await refresh();
+      if (result.task?.taskNo) {
+        void refreshAfterTaskSettles(result.task.taskNo);
+      }
     } catch (error) {
       showToast(toErrorMessage(error, "上传失败"));
     } finally {
@@ -176,12 +193,12 @@ export default function KnowledgeBasePage() {
           type="file"
           hidden
           onChange={(event) => void handleFileChange(event)}
-          accept=".pdf,.txt,.md,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.json"
+          accept=".txt,.md,.csv,.json"
         />
         <button type="button" className="upload-area" onClick={handleFileChoose} disabled={uploading}>
           <FilePlus2 size={20} />
           <span>{uploading ? "上传中..." : "点击上传学习资料"}</span>
-          <small>支持 PDF / Word / Markdown / 表格，最大 10MB</small>
+          <small>支持 TXT / Markdown / CSV / JSON，最大 10MB</small>
         </button>
 
         <div className="search-row">
@@ -247,4 +264,8 @@ export default function KnowledgeBasePage() {
       </section>
     </div>
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

@@ -1,11 +1,14 @@
 package com.interview.application.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.interview.application.port.LlmGateway;
 import com.interview.application.dto.GenerateQuizCommand;
 import com.interview.application.dto.GeneratedQuizResult;
+import com.interview.application.port.LlmGateway;
+import com.interview.application.service.quiz.QuestionDraft;
+import com.interview.application.service.quiz.QuizFallbackQuestionFactory;
+import com.interview.application.service.quiz.QuizGenerationPolicy;
+import com.interview.application.service.quiz.QuizPromptBuilder;
+import com.interview.application.service.quiz.StructuredQuizPayload;
+import com.interview.application.service.quiz.StructuredQuizPayloadParser;
 import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
@@ -16,66 +19,97 @@ import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class QuizApplicationService {
     private static final Logger logger = LoggerFactory.getLogger(QuizApplicationService.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final int MAX_BRIEF_LENGTH = 500;
     private static final String MODEL_NAME_STRUCTURED = "llm-structured";
     private static final String MODEL_NAME_FALLBACK = "fallback-local";
 
-    private static final Map<String, String> QUESTION_TYPE_MAP = new LinkedHashMap<>();
-    private static final int MAX_QUESTIONS_PER_QUIZ = 10;
-    private static final int MIN_QUESTIONS_PER_QUIZ = 1;
-    private static final int MAX_DIFFICULTY = 5;
-    private static final int MIN_DIFFICULTY = 1;
-
-    static {
-        QUESTION_TYPE_MAP.put("choice", "SINGLE_CHOICE");
-        QUESTION_TYPE_MAP.put("single_choice", "SINGLE_CHOICE");
-        QUESTION_TYPE_MAP.put("SINGLE_CHOICE", "SINGLE_CHOICE");
-        QUESTION_TYPE_MAP.put("short", "SHORT_ANSWER");
-        QUESTION_TYPE_MAP.put("short_answer", "SHORT_ANSWER");
-        QUESTION_TYPE_MAP.put("SHORT_ANSWER", "SHORT_ANSWER");
-        QUESTION_TYPE_MAP.put("code", "CODING");
-        QUESTION_TYPE_MAP.put("coding", "CODING");
-        QUESTION_TYPE_MAP.put("CODING", "CODING");
-        QUESTION_TYPE_MAP.put("interview", "INTERVIEW");
-        QUESTION_TYPE_MAP.put("INTERVIEW", "INTERVIEW");
-    }
-
     private final MaterialRepository materialRepository;
     private final QuestionRepository questionRepository;
     private final LlmGateway llmGateway;
-
-    @Value("${app.quiz.question-guidance:Keep each question grounded in backend project experience.}")
-    private String questionGuidance = "Keep each question grounded in backend project experience.";
+    private final QuizGenerationPolicy generationPolicy;
+    private final QuizPromptBuilder promptBuilder;
+    private final StructuredQuizPayloadParser payloadParser;
+    private final QuizFallbackQuestionFactory questionFactory;
+    private final TransactionTemplate txTemplate;
 
     public QuizApplicationService(
             MaterialRepository materialRepository,
             QuestionRepository questionRepository,
-            LlmGateway llmGateway
+            LlmGateway llmGateway,
+            QuizGenerationPolicy generationPolicy,
+            QuizPromptBuilder promptBuilder,
+            StructuredQuizPayloadParser payloadParser,
+            QuizFallbackQuestionFactory questionFactory,
+            TransactionTemplate txTemplate
     ) {
         this.materialRepository = materialRepository;
         this.questionRepository = questionRepository;
         this.llmGateway = llmGateway;
+        this.generationPolicy = generationPolicy;
+        this.promptBuilder = promptBuilder;
+        this.payloadParser = payloadParser;
+        this.questionFactory = questionFactory;
+        this.txTemplate = txTemplate;
     }
 
-    @Transactional
     @CircuitBreaker(name = "llmGateway", fallbackMethod = "generateQuizFallback")
     @Retry(name = "llmGateway")
     @RateLimiter(name = "quizGeneration")
     public GeneratedQuizResult generate(Long userId, GenerateQuizCommand command) {
+        validateGenerateInput(userId, command);
+
+        List<Material> materials = loadMaterials(userId, command.materialIds());
+        String questionType = generationPolicy.normalizeQuestionType(command.questionType());
+        int difficulty = generationPolicy.normalizeDifficulty(command.difficulty());
+        int count = generationPolicy.normalizeCount(command.count());
+        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+
+        String prompt = promptBuilder.build(materials, questionType, difficulty, count, interviewMode);
+        String rawLlmResponse = llmGateway.chat(prompt);
+        StructuredQuizPayload payload = payloadParser.parse(rawLlmResponse, count);
+        boolean fallbackUsed = payload == null || payload.questions().size() < count;
+
+        List<Question> savedQuestions = txTemplate.execute(status ->
+                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, payload));
+        return new GeneratedQuizResult(
+                "quiz-" + shortUuid(),
+                buildModelBrief(payload, fallbackUsed),
+                savedQuestions
+        );
+    }
+
+    public List<Question> recent(Long userId, int limit) {
+        return questionRepository.findRecentByUser(userId, Math.max(1, Math.min(limit, 50)));
+    }
+
+    private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
+        logger.error("LLM Gateway circuit breaker triggered, using deterministic fallback: {}", throwable.getMessage());
+
+        validateGenerateInput(userId, command);
+        List<Material> materials = loadMaterials(userId, command.materialIds());
+        String questionType = generationPolicy.normalizeQuestionType(command.questionType());
+        int difficulty = generationPolicy.normalizeDifficulty(command.difficulty());
+        int count = generationPolicy.normalizeCount(command.count());
+        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+
+        return new GeneratedQuizResult(
+                "quiz-fallback-" + shortUuid(),
+                "LLM unavailable, circuit breaker activated. Generated questions using deterministic fallback templates.",
+                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, null)
+        );
+    }
+
+    private void validateGenerateInput(Long userId, GenerateQuizCommand command) {
         if (userId == null) {
             throw new IllegalArgumentException("userId cannot be null");
         }
@@ -85,29 +119,32 @@ public class QuizApplicationService {
         if (command.materialIds() == null || command.materialIds().isEmpty()) {
             throw new IllegalArgumentException("materialIds cannot be null or empty");
         }
+    }
 
-        List<Material> materials = materialRepository.findByUserIdAndIds(userId, command.materialIds());
+    private List<Material> loadMaterials(Long userId, List<Long> materialIds) {
+        List<Material> materials = materialRepository.findByUserIdAndIds(userId, materialIds);
         if (materials.isEmpty()) {
             throw new IllegalArgumentException("No materials found for quiz generation");
         }
+        return materials;
+    }
 
-        String questionType = normalizeQuestionType(command.questionType());
-        int difficulty = validateAndNormalizeDifficulty(command.difficulty());
-        int count = validateAndNormalizeCount(command.count());
-        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
-        String traceId = "quiz-" + UUID.randomUUID().toString().substring(0, 8);
-        String prompt = buildPrompt(materials, questionType, difficulty, count, interviewMode);
-        String rawLlmResponse = llmGateway.chat(prompt);
-        StructuredQuizPayload payload = parseStructuredPayload(rawLlmResponse, count);
-        boolean fallbackUsed = payload == null || payload.questions().size() < count;
-        String modelBrief = buildModelBrief(payload, fallbackUsed);
-        String modelName = payload == null ? MODEL_NAME_FALLBACK : MODEL_NAME_STRUCTURED;
+    private List<Question> persistQuestions(
+            Long userId,
+            List<Material> materials,
+            String questionType,
+            int difficulty,
+            int count,
+            boolean interviewMode,
+            StructuredQuizPayload payload
+    ) {
         List<QuestionDraft> structuredQuestions = payload == null ? List.of() : payload.questions();
-
+        String modelName = payload == null ? MODEL_NAME_FALLBACK : MODEL_NAME_STRUCTURED;
         List<Question> questions = new ArrayList<>();
+
         for (int index = 0; index < count; index++) {
             Material material = materials.get(index % materials.size());
-            QuestionDraft draft = selectQuestionDraft(
+            QuestionDraft draft = questionFactory.selectDraft(
                     structuredQuestions,
                     material,
                     questionType,
@@ -128,182 +165,7 @@ public class QuizApplicationService {
             ));
         }
 
-        return new GeneratedQuizResult(traceId, modelBrief, questions);
-    }
-
-    public List<Question> recent(Long userId, int limit) {
-        return questionRepository.findRecentByUser(userId, Math.max(1, Math.min(limit, 50)));
-    }
-
-    private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
-        logger.error("LLM Gateway circuit breaker triggered, using deterministic fallback: {}", throwable.getMessage());
-        
-        List<Material> materials = materialRepository.findByUserIdAndIds(userId, command.materialIds());
-        String questionType = normalizeQuestionType(command.questionType());
-        int difficulty = validateAndNormalizeDifficulty(command.difficulty());
-        int count = validateAndNormalizeCount(command.count());
-        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
-        String traceId = "quiz-fallback-" + UUID.randomUUID().toString().substring(0, 8);
-        
-        List<Question> questions = new ArrayList<>();
-        for (int index = 0; index < count; index++) {
-            Material material = materials.get(index % materials.size());
-            QuestionDraft draft = draftQuestion(material, questionType, difficulty, index, interviewMode);
-            questions.add(questionRepository.save(
-                    material.id(),
-                    userId,
-                    questionType,
-                    draft.stemText(),
-                    draft.referenceAnswer(),
-                    draft.analysisText(),
-                    difficulty,
-                    TaskConstants.SOURCE_TYPE_AI,
-                    "fallback-local"
-            ));
-        }
-        
-        return new GeneratedQuizResult(traceId, "LLM unavailable, circuit breaker activated. Generated questions using deterministic fallback templates.", questions);
-    }
-
-    private int validateAndNormalizeCount(Integer count) {
-        if (count == null) {
-            return 3;
-        }
-        if (count < MIN_QUESTIONS_PER_QUIZ) {
-            logger.warn("Quiz count {} below minimum {}, using minimum", count, MIN_QUESTIONS_PER_QUIZ);
-            return MIN_QUESTIONS_PER_QUIZ;
-        }
-        if (count > MAX_QUESTIONS_PER_QUIZ) {
-            logger.warn("Quiz count {} above maximum {}, using maximum", count, MAX_QUESTIONS_PER_QUIZ);
-            return MAX_QUESTIONS_PER_QUIZ;
-        }
-        return count;
-    }
-
-    private int validateAndNormalizeDifficulty(Integer difficulty) {
-        if (difficulty == null) {
-            return 3;
-        }
-        if (difficulty < MIN_DIFFICULTY) {
-            logger.warn("Difficulty {} below minimum {}, using minimum", difficulty, MIN_DIFFICULTY);
-            return MIN_DIFFICULTY;
-        }
-        if (difficulty > MAX_DIFFICULTY) {
-            logger.warn("Difficulty {} above maximum {}, using maximum", difficulty, MAX_DIFFICULTY);
-            return MAX_DIFFICULTY;
-        }
-        return difficulty;
-    }
-
-    private String normalizeQuestionType(String value) {
-        String normalized = QUESTION_TYPE_MAP.get(value);
-        if (normalized == null) {
-            normalized = QUESTION_TYPE_MAP.get(value.toLowerCase());
-        }
-        if (normalized == null) {
-            throw new IllegalArgumentException("Unsupported question type: " + value);
-        }
-        return normalized;
-    }
-
-    private String buildPrompt(List<Material> materials, String questionType, int difficulty, int count, boolean interviewMode) {
-        String materialNames = materials.stream().map(Material::name).toList().toString();
-        return "Generate " + count + " " + questionType + " questions. Materials=" + materialNames
-                + ", difficulty=" + difficulty + ", interviewMode=" + interviewMode
-                + ". " + questionGuidance + " "
-                + "Return ONLY strict JSON with schema: "
-                + "{\"summary\":\"string\",\"questions\":[{\"stem\":\"string\",\"referenceAnswer\":\"string\",\"analysis\":\"string\"}]}. "
-                + "Do not use markdown and do not output any extra keys.";
-    }
-
-    private QuestionDraft draftQuestion(Material material, String questionType, int difficulty, int index, boolean interviewMode) {
-        String depth = switch (difficulty) {
-            case 1 -> "基础概念";
-            case 2 -> "常见场景";
-            case 3 -> "项目实践";
-            case 4 -> "故障排查";
-            default -> "架构取舍";
-        };
-        String stem = switch (questionType) {
-            case "SINGLE_CHOICE" -> material.name() + "：围绕" + depth + "设计一道单选题，指出最合理的方案并说明其他选项的问题。";
-            case "CODING" -> material.name() + "：写一个可落地的代码设计题，要求体现边界条件、异常处理和复杂度分析。";
-            case "INTERVIEW" -> material.name() + "：请用面试追问方式考察候选人对" + depth + "的理解，并要求结合真实项目回答。";
-            default -> material.name() + "：请回答一个" + depth + "问题，并给出原理、项目落点和排查路径。";
-        };
-        if (interviewMode) {
-            stem = stem + " 追问候选人的技术取舍、失败案例和可观测性方案。";
-        }
-        return new QuestionDraft(
-                index + ". " + stem,
-                "参考答案应覆盖核心概念、项目实践、风险边界和验证方法。",
-                "评分重点：答案是否贴合资料主题，是否能解释取舍，并能给出可执行排查步骤。"
-        );
-    }
-
-    private StructuredQuizPayload parseStructuredPayload(String rawLlmResponse, int expectedCount) {
-        if (rawLlmResponse == null || rawLlmResponse.isBlank()) {
-            logger.warn("LLM returned empty content for structured quiz generation.");
-            return null;
-        }
-        try {
-            JsonNode root = OBJECT_MAPPER.readTree(rawLlmResponse);
-            if (!root.isObject()) {
-                logger.warn("LLM structured output schema mismatch: root is not object.");
-                return null;
-            }
-
-            String summary = normalizeText(root.path("summary").asText(null));
-            if (summary == null) {
-                logger.warn("LLM structured output schema mismatch: summary missing.");
-                return null;
-            }
-
-            JsonNode questionsNode = root.path("questions");
-            if (!questionsNode.isArray() || questionsNode.isEmpty()) {
-                logger.warn("LLM structured output schema mismatch: questions missing.");
-                return null;
-            }
-
-            List<QuestionDraft> drafts = new ArrayList<>();
-            for (JsonNode node : questionsNode) {
-                String stem = normalizeText(node.path("stem").asText(null));
-                String referenceAnswer = normalizeText(node.path("referenceAnswer").asText(null));
-                String analysis = normalizeText(node.path("analysis").asText(null));
-                if (stem == null || referenceAnswer == null || analysis == null) {
-                    continue;
-                }
-                drafts.add(new QuestionDraft(stem, referenceAnswer, analysis));
-                if (drafts.size() >= expectedCount) {
-                    break;
-                }
-            }
-
-            if (drafts.isEmpty()) {
-                logger.warn("LLM structured output schema mismatch: no valid question items.");
-                return null;
-            }
-
-            return new StructuredQuizPayload(summary, drafts);
-        } catch (JsonProcessingException ex) {
-            logger.warn("LLM structured output is not valid JSON: {}", ex.getOriginalMessage());
-            return null;
-        }
-    }
-
-    private QuestionDraft selectQuestionDraft(
-            List<QuestionDraft> structuredQuestions,
-            Material material,
-            String questionType,
-            int difficulty,
-            int index,
-            boolean interviewMode
-    ) {
-        if (index < structuredQuestions.size()) {
-            QuestionDraft structured = structuredQuestions.get(index);
-            String normalizedStem = prefixIndexIfMissing(structured.stemText(), index + 1);
-            return new QuestionDraft(normalizedStem, structured.referenceAnswer(), structured.analysisText());
-        }
-        return draftQuestion(material, questionType, difficulty, index + 1, interviewMode);
+        return questions;
     }
 
     private String buildModelBrief(StructuredQuizPayload payload, boolean fallbackUsed) {
@@ -316,26 +178,6 @@ public class QuizApplicationService {
         return limitLength(payload.summary());
     }
 
-    private String normalizeText(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.isEmpty()) {
-            return null;
-        }
-        return normalized;
-    }
-
-    private String prefixIndexIfMissing(String stemText, int index) {
-        String trimmed = stemText == null ? "" : stemText.trim();
-        if (trimmed.isEmpty()) {
-            return index + ". 题干缺失，已由系统补全。";
-        }
-        String prefix = index + ".";
-        return trimmed.startsWith(prefix) ? trimmed : prefix + " " + trimmed;
-    }
-
     private String limitLength(String text) {
         if (text == null) {
             return "";
@@ -343,9 +185,7 @@ public class QuizApplicationService {
         return text.length() > MAX_BRIEF_LENGTH ? text.substring(0, MAX_BRIEF_LENGTH) : text;
     }
 
-    private record QuestionDraft(String stemText, String referenceAnswer, String analysisText) {
-    }
-
-    private record StructuredQuizPayload(String summary, List<QuestionDraft> questions) {
+    private String shortUuid() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 }

@@ -1,8 +1,13 @@
 package com.interview.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.interview.application.port.LlmGateway;
 import com.interview.application.dto.GenerateQuizCommand;
 import com.interview.application.dto.GeneratedQuizResult;
+import com.interview.application.service.quiz.QuizFallbackQuestionFactory;
+import com.interview.application.service.quiz.QuizGenerationPolicy;
+import com.interview.application.service.quiz.QuizPromptBuilder;
+import com.interview.application.service.quiz.StructuredQuizPayloadParser;
 import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
@@ -13,9 +18,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,7 +48,9 @@ class QuizApplicationServiceTest {
     @Mock
     private LlmGateway llmGateway;
 
-    @InjectMocks
+    @Mock
+    private TransactionTemplate txTemplate;
+
     private QuizApplicationService quizApplicationService;
 
     private Material material;
@@ -50,6 +58,21 @@ class QuizApplicationServiceTest {
     @BeforeEach
     void setUp() {
         LocalDateTime now = LocalDateTime.now();
+        when(txTemplate.execute(org.mockito.ArgumentMatchers.any(TransactionCallback.class))).thenAnswer(invocation -> {
+            TransactionCallback<List<Question>> callback = invocation.getArgument(0);
+            return callback.doInTransaction(null);
+        });
+
+        quizApplicationService = new QuizApplicationService(
+                materialRepository,
+                questionRepository,
+                llmGateway,
+                new QuizGenerationPolicy(),
+                new QuizPromptBuilder("Keep each question grounded in backend project experience."),
+                new StructuredQuizPayloadParser(new ObjectMapper()),
+                new QuizFallbackQuestionFactory(),
+                txTemplate
+        );
         material = new Material(
                 100L,
                 1L,

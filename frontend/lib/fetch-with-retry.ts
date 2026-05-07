@@ -7,7 +7,8 @@ export async function fetchWithRetry(
   url: string,
   options: FetchWithRetryOptions = {}
 ): Promise<Response> {
-  const { retries = 2, retryDelay = 1000, ...fetchOptions } = options;
+  const { retries: configuredRetries, retryDelay = 1000, ...fetchOptions } = options;
+  const retries = configuredRetries ?? (isSafeRetryMethod(fetchOptions.method) ? 2 : 0);
 
   let lastError: Error | null = null;
 
@@ -35,4 +36,9 @@ export async function fetchWithRetry(
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isSafeRetryMethod(method: RequestInit["method"]): boolean {
+  const normalized = String(method ?? "GET").toUpperCase();
+  return normalized === "GET" || normalized === "HEAD";
 }

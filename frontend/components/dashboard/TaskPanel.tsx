@@ -34,6 +34,7 @@ export function TaskPanel() {
                 <span>{task.traceId}</span>
                 <span>{task.duration}</span>
               </div>
+              {task.detail && <p className="task-detail">{task.detail}</p>}
             </div>
           </article>
         ))}

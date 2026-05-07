@@ -46,11 +46,13 @@ CREATE TABLE questions (
   creator_user_id BIGINT,
   question_type VARCHAR(32) NOT NULL,
   stem_text CLOB NOT NULL,
+  options_json CLOB,
   reference_answer CLOB,
   analysis_text CLOB,
   difficulty INT,
   source_type VARCHAR(32),
   model_name VARCHAR(64),
+  status INT NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

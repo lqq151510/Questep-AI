@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, ListChecks, Play, RefreshCw, Sparkles } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { useToast } from "@/components/new-ui/ToastProvider";
@@ -146,7 +146,7 @@ export default function AiTestPage() {
   const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  const refreshMaterials = async () => {
+  const refreshMaterials = useCallback(async () => {
     setLoadingMaterials(true);
     try {
       const data = await listMaterials();
@@ -157,11 +157,11 @@ export default function AiTestPage() {
     } finally {
       setLoadingMaterials(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     void refreshMaterials();
-  }, []);
+  }, [refreshMaterials]);
 
   useEffect(() => {
     if (!started || submitted) {

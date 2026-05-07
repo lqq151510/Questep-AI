@@ -15,6 +15,7 @@ export type MaterialItem = {
   chunks: number;
   score: number;
   updatedAt: string;
+  detail?: string;
 };
 
 export type TaskItem = {
@@ -25,6 +26,7 @@ export type TaskItem = {
   progress: number;
   traceId: string;
   duration: string;
+  detail?: string;
 };
 
 export type KnowledgeItem = {
@@ -40,39 +42,11 @@ export type NavItem = {
   active: boolean;
 };
 
-export type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-};
-
 export type RemoteMaterial = {
   id?: number | string;
   name?: string;
   fileType?: string;
   parseStatus?: string;
+  parseErrorMsg?: string | null;
   updatedAt?: string;
-};
-
-export type AsyncTaskRecord = {
-  taskNo?: string;
-  taskType?: string;
-  status?: string;
-  progress?: number;
-};
-
-export type UploadMaterialResult = {
-  material?: RemoteMaterial;
-  task?: AsyncTaskRecord;
-};
-
-export type GeneratedQuestion = {
-  id: number;
-  stemText: string;
-};
-
-export type GeneratedQuizResult = {
-  traceId: string;
-  modelBrief: string;
-  questions: GeneratedQuestion[];
 };

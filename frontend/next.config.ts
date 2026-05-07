@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/api/health",
-        destination: `${backendUrl}/api/health`
+        destination: `${backendUrl}/api/v1/health`
       }
     ];
   }
