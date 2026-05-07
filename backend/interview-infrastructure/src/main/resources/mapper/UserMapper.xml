@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.UserMapper">
+    <resultMap id="userMap" type="com.interview.domain.model.User">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.Integer"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="userColumns">id,username,email,password_hash,status,created_at,updated_at</sql>
+
+    <sql id="userInsertColumns">
+        <trim suffixOverrides=",">
+            username,
+            email,
+            password_hash,
+            <if test="displayName != null">display_name,</if>
+            <if test="status != null">status,</if>
+        </trim>
+    </sql>
+
+    <sql id="userInsertValues">
+        <trim suffixOverrides=",">
+            #{username},
+            #{email},
+            #{passwordHash},
+            <if test="displayName != null">#{displayName},</if>
+            <if test="status != null">#{status},</if>
+        </trim>
+    </sql>
+
+    <insert id="insert" parameterType="com.interview.infrastructure.persistence.entity.UserPO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (
+            <include refid="userInsertColumns"/>
+        )
+        VALUES (
+            <include refid="userInsertValues"/>
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.interview.infrastructure.persistence.entity.UserPO">
+        UPDATE users
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="passwordHash != null">password_hash = #{passwordHash},</if>
+            <if test="displayName != null">display_name = #{displayName},</if>
+            <if test="status != null">status = #{status},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByUsername" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <select id="selectByEmail" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE email = #{email}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="selectByCondition" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        <where>
+            <if test="username != null and username != ''">AND username = #{username}</if>
+            <if test="email != null and email != ''">AND email = #{email}</if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+    </select>
+
+    <select id="selectByIds" resultMap="userMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <delete id="deleteById" parameterType="long">
+        DELETE FROM users WHERE id = #{id}
+    </delete>
+</mapper>

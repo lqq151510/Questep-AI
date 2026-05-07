@@ -1,0 +1,182 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: interview-api
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:10MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:15MB}
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/interview_ai?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USER:interview_user}
+    password: ${MYSQL_PASSWORD:interview_pass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:300000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT:30000}
+      leak-detection-threshold: ${DB_POOL_LEAK_DETECTION:60000}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expire-ms: ${JWT_EXPIRE_MS:86400000}
+    refresh-expire-ms: ${JWT_REFRESH_EXPIRE_MS:604800000}
+  storage:
+    material-dir: ${MATERIAL_DIR:./data/materials}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://127.0.0.1:3000,http://localhost:3000}
+  async:
+    core-pool-size: ${ASYNC_CORE_POOL_SIZE:2}
+    max-pool-size: ${ASYNC_MAX_POOL_SIZE:4}
+    queue-capacity: ${ASYNC_QUEUE_CAPACITY:20}
+  upload:
+    max-file-size: ${UPLOAD_MAX_FILE_SIZE:10MB}
+  milvus:
+    host: ${MILVUS_HOST:127.0.0.1}
+    port: ${MILVUS_PORT:19530}
+  llm:
+    provider: ${LLM_PROVIDER:noop}
+    base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:gpt-4o-mini}
+    system-prompt: ${LLM_SYSTEM_PROMPT:You generate concise interview practice material grounded in backend project experience.}
+    retry:
+      max-attempts: ${LLM_RETRY_MAX_ATTEMPTS:3}
+      backoff-ms: ${LLM_RETRY_BACKOFF_MS:500}
+  quiz:
+    question-guidance: ${QUIZ_QUESTION_GUIDANCE:Keep each question grounded in backend project experience.}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers,metrics,prometheus
+
+  endpoint:
+    health:
+      show-details: always
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:1.0}
+    propagation:
+      type: W3C
+
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        enabled: ${OTEL_ENABLED:false}
+
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
+      enabled: ${ZIPKIN_ENABLED:false}
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        recordExceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+    instances:
+      llmGateway:
+        baseConfig: default
+        slidingWindowSize: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 60s
+      materialService:
+        baseConfig: default
+        slidingWindowSize: 8
+        failureRateThreshold: 40
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+    instances:
+      llmGateway:
+        maxAttempts: 3
+        waitDuration: 1s
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+          - org.springframework.web.client.ResourceAccessException
+      milvusService:
+        maxAttempts: 2
+        waitDuration: 200ms
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0s
+    instances:
+      quizGeneration:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1m
+        timeoutDuration: 5s
+      auth:
+        limitForPeriod: 5
+        limitRefreshPeriod: 1m
+        timeoutDuration: 0s
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 10s
+        cancelRunningFutureOnTimeout: true
+    instances:
+      llmGateway:
+        timeoutDuration: 30s
+      materialParse:
+        timeoutDuration: 60s
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0s
+    instances:
+      llmGateway:
+        maxConcurrentCalls: 10
+        maxWaitDuration: 2s
+      fileUpload:
+        maxConcurrentCalls: 5
+        maxWaitDuration: 5s
