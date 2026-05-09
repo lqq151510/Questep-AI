@@ -1,113 +1,158 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, Bot, BrainCircuit, BookOpenText, Sparkles, Target, Trophy } from "lucide-react";
-import { AnimatedCounter } from "@/components/new-ui/AnimatedCounter";
-import { FeatureCard, MetricCard } from "@/components/new-ui/cards";
+import { motion } from "framer-motion";
+import {
+  Sparkles,
+  BrainCircuit,
+  MessageSquare,
+  Database,
+  ClipboardList,
+  AlertTriangle,
+  Lightbulb,
+  ArrowRight,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import { FeatureCard } from "@/components/new-ui/cards";
+import { AnimatedCounter } from "@/components/new-ui/cards";
 
 const features = [
   {
+    icon: BrainCircuit,
+    title: "AI 智能测试",
+    description: "根据你的技术方向自动生成高质量面试题，实时评估答题表现。",
+    tag: "智能出题",
     href: "/ai-test",
-    icon: <Target size={20} />,
-    title: "AI 自适应测试",
-    description: "根据岗位、难度和题型实时组卷，自动追踪答题进度与薄弱点。",
-    tag: "Practice Engine"
   },
   {
+    icon: MessageSquare,
+    title: "AI 面试官",
+    description: "模拟真实面试场景，AI 面试官与你实时对话，提供多维度评分。",
+    tag: "模拟面试",
     href: "/ai-interviewer",
-    icon: <Bot size={20} />,
-    title: "AI 模拟面试官",
-    description: "支持真实面试节奏的追问、反问和结构化报告，强化表达与应答能力。",
-    tag: "Mock Interview"
   },
   {
-    href: "/ai-qa",
-    icon: <BrainCircuit size={20} />,
-    title: "即时 AI 问答",
-    description: "围绕常见八股与系统设计问题，给出可落地、可延展的讲解路径。",
-    tag: "Knowledge Coach"
-  },
-  {
+    icon: Database,
+    title: "知识库管理",
+    description: "上传学习资料，AI 自动解析生成结构化知识，随时检索复习。",
+    tag: "资料解析",
     href: "/knowledge-base",
-    icon: <BookOpenText size={20} />,
-    title: "个人知识库",
-    description: "上传资料后自动解析成知识点，打通题库、错题本与复习计划。",
-    tag: "Data Hub"
-  }
-] as const;
+  },
+  {
+    icon: ClipboardList,
+    title: "题库练习",
+    description: "海量面试真题，支持按方向、难度筛选，针对性提升薄弱环节。",
+    tag: "真题练习",
+    href: "/question-bank",
+  },
+  {
+    icon: AlertTriangle,
+    title: "错题本",
+    description: "自动记录错题，智能分析薄弱知识点，科学安排复习计划。",
+    tag: "智能复习",
+    href: "/wrong-answers",
+  },
+  {
+    icon: Lightbulb,
+    title: "面试技巧",
+    description: "精选面试攻略和技巧文章，助你掌握面试中的加分细节。",
+    tag: "经验分享",
+    href: "/interview-tips",
+  },
+];
+
+const stats = [
+  { label: "面试题库", value: 5000, suffix: "+" },
+  { label: "覆盖方向", value: 12, suffix: "个" },
+  { label: "AI 评分维度", value: 6, suffix: "维" },
+  { label: "用户满意度", value: 98, suffix: "%" },
+];
 
 export default function LandingPage() {
   return (
-    <div className="container">
+    <div>
       <PageHero
         kicker="AI Interview Studio"
-        title="用 AI 重塑你的面试准备路径"
-        description="从资料沉淀、专项测试到模拟面试与错题追踪，形成可闭环、可量化、可持续迭代的备考系统。"
+        title="AI 驱动的面试训练平台"
+        description="智能出题、模拟面试、知识管理，一站式提升你的面试能力。让 AI 成为你的私人面试教练。"
         actions={
           <>
-            <Link href="/ai-test" className="btn btn-accent">
-              开始测试
-              <ArrowRight size={16} />
+            <Link href="/home" className="btn btn-accent">
+              <Sparkles size={16} />
+              开始训练
+              <ArrowRight size={14} />
             </Link>
-            <Link href="/home" className="btn btn-ghost">
-              查看系统总览
+            <Link href="/ai-test" className="btn btn-ghost">
+              快速测试
             </Link>
           </>
         }
       />
 
-      <section className="metric-grid">
-        <MetricCard
-          label="累计题目生成"
-          value={<AnimatedCounter value={12840} suffix="+" />}
-          hint="多题型覆盖 Java / Spring / MySQL / 算法"
-        />
-        <MetricCard
-          label="模拟面试时长"
-          value={<AnimatedCounter value={468} suffix="h" />}
-          hint="会话记录可回看，支持复盘与二次训练"
-        />
-        <MetricCard
-          label="平均正确率提升"
-          value={<AnimatedCounter value={37} suffix="%" />}
-          hint="根据错题分布给出下一轮训练建议"
-        />
-        <MetricCard
-          label="知识点沉淀"
-          value={<AnimatedCounter value={1420} suffix=" 条" />}
-          hint="从资料中自动抽取关键概念与题源"
-        />
-      </section>
+      {/* Stats */}
+      <motion.section
+        className="metric-grid"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+      >
+        {stats.map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            className="metric-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 + i * 0.08, duration: 0.4 }}
+          >
+            <p className="metric-label">{stat.label}</p>
+            <p className="metric-value">
+              <AnimatedCounter target={stat.value} suffix={stat.suffix} />
+            </p>
+          </motion.div>
+        ))}
+      </motion.section>
 
       <div className="gradient-divider" />
 
+      {/* Features */}
       <section className="section-block">
         <div className="section-head">
-          <h2>核心能力组件</h2>
-          <p>页面已切换到新版视觉与交互体系，并支持动态效果与组件化扩展。</p>
+          <h2>核心功能</h2>
+          <p>六大模块，全方位覆盖面试准备需求</p>
         </div>
         <div className="feature-grid">
-          {features.map((item) => (
-            <FeatureCard key={item.title} {...item} />
+          {features.map((f, i) => (
+            <FeatureCard key={f.title} {...f} index={i} />
           ))}
         </div>
       </section>
 
-      <section className="panel spotlight">
-        <div>
-          <h3>训练建议引擎</h3>
-          <p>根据最近 7 天测试结果与面试报告，自动推荐下一阶段训练组合。</p>
+      <div className="gradient-divider" />
+
+      {/* CTA */}
+      <motion.section
+        className="panel text-center"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.5 }}
+      >
+        <div className="relative mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--blue-soft)] to-[var(--cyan-soft)] text-[var(--blue)]">
+          <Sparkles size={28} strokeWidth={1.5} />
         </div>
-        <div className="spotlight-stats">
-          <span>
-            <Sparkles size={16} />
-            动态学习路径
-          </span>
-          <span>
-            <Trophy size={16} />
-            目标岗位命中率
-          </span>
+        <h2 className="text-xl font-bold text-[var(--ink)]">准备好提升面试能力了吗？</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm text-[var(--muted)]">
+          立即开始 AI 面试训练，获取个性化学习建议和实时反馈
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Link href="/home" className="btn btn-accent">
+            进入工作台
+            <ArrowRight size={14} />
+          </Link>
+          <Link href="/ai-interviewer" className="btn btn-ghost">
+            模拟面试
+          </Link>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 }

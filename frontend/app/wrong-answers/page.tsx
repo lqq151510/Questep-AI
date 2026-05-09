@@ -1,186 +1,218 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, RefreshCw, Search, Target } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  AlertTriangle,
+  RotateCcw,
+  CheckCircle,
+  TrendingUp,
+  BookOpen,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { useToast } from "@/components/new-ui/ToastProvider";
-import { listQuestions, toErrorMessage, type BackendQuestion } from "@/lib/interview-api";
+import { EmptyState } from "@/components/ui/EmptyState";
 
-type WrongItem = {
-  id: string;
-  title: string;
-  category: string;
-  level: "高频" | "常规";
-  mastered: boolean;
-};
-
-const WRONG_BOOK_KEY = "wrong_question_records";
-
-function inferCategory(stem: string): string {
-  const lower = stem.toLowerCase();
-  if (lower.includes("spring")) return "Spring";
-  if (lower.includes("mysql") || lower.includes("索引")) return "MySQL";
-  if (lower.includes("redis")) return "Redis";
-  if (lower.includes("系统设计") || lower.includes("高并发")) return "系统设计";
-  if (lower.includes("java") || lower.includes("线程") || lower.includes("jvm")) return "Java";
-  return "通用";
-}
-
-function normalizeLevel(difficulty?: number | null): "高频" | "常规" {
-  return (difficulty ?? 3) >= 4 ? "高频" : "常规";
-}
-
-function toWrongItem(question: BackendQuestion): WrongItem {
-  return {
-    id: `q-${question.id}`,
-    title: question.stemText,
-    category: inferCategory(question.stemText),
-    level: normalizeLevel(question.difficulty),
-    mastered: false
-  };
-}
-
-function readLocalWrongItems(): WrongItem[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(WRONG_BOOK_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as WrongItem[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function persist(items: WrongItem[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(WRONG_BOOK_KEY, JSON.stringify(items));
-}
+const mockWrongAnswers = [
+  {
+    id: 1,
+    question: "Java 中 volatile 关键字的作用是什么？",
+    direction: "Java",
+    yourAnswer: "保证原子性",
+    correctAnswer: "保证可见性和禁止指令重排序",
+    mastered: false,
+    reviewCount: 2,
+  },
+  {
+    id: 2,
+    question: "Redis 持久化机制有哪些？",
+    direction: "数据库",
+    yourAnswer: "RDB",
+    correctAnswer: "RDB 和 AOF",
+    mastered: true,
+    reviewCount: 5,
+  },
+  {
+    id: 3,
+    question: "TCP 三次握手的过程是什么？",
+    direction: "网络",
+    yourAnswer: "SYN -> ACK -> SYN+ACK",
+    correctAnswer: "SYN -> SYN+ACK -> ACK",
+    mastered: false,
+    reviewCount: 1,
+  },
+];
 
 export default function WrongAnswersPage() {
-  const { showToast } = useToast();
-  const [category, setCategory] = useState("全部");
-  const [keyword, setKeyword] = useState("");
-  const [items, setItems] = useState<WrongItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [wrongAnswers, setWrongAnswers] = useState(mockWrongAnswers);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const localItems = readLocalWrongItems();
-      const remoteQuestions = await listQuestions(30);
-      const remoteItems = remoteQuestions.map(toWrongItem);
-      const merged = new Map<string, WrongItem>();
-      for (const item of remoteItems) {
-        merged.set(item.id, item);
-      }
-      for (const item of localItems) {
-        merged.set(item.id, item);
-      }
-      const result = Array.from(merged.values());
-      setItems(result);
-      persist(result);
-    } catch (error) {
-      showToast(toErrorMessage(error, "加载错题失败"));
-      const localItems = readLocalWrongItems();
-      setItems(localItems);
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const filtered = useMemo(() => {
-    const text = keyword.trim().toLowerCase();
-    return items.filter((item) => {
-      const categoryPass = category === "全部" || item.category === category;
-      const textPass = !text || item.title.toLowerCase().includes(text);
-      return categoryPass && textPass;
-    });
-  }, [category, items, keyword]);
-
-  const toggleMastered = (id: string) => {
-    setItems((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, mastered: !item.mastered } : item));
-      persist(next);
-      return next;
-    });
+  const toggleMastered = (id: number) => {
+    setWrongAnswers((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, mastered: !w.mastered } : w))
+    );
   };
 
+  const unmastered = wrongAnswers.filter((w) => !w.mastered);
+  const mastered = wrongAnswers.filter((w) => w.mastered);
+  const masteryRate = Math.round((mastered.length / wrongAnswers.length) * 100) || 0;
+
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="Wrong Answer Book"
-        title="错题本"
-        description="聚焦高频错误题，持续复习直到掌握。"
+        kicker="错题本"
+        title="错题复习"
+        description="自动记录错题，智能分析薄弱知识点，科学安排复习计划。"
       />
 
-      <section className="panel">
-        <div className="filter-grid two">
-          <select className="input-select" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option>全部</option>
-            <option>Java</option>
-            <option>Spring</option>
-            <option>MySQL</option>
-            <option>Redis</option>
-            <option>系统设计</option>
-            <option>通用</option>
-          </select>
-          <label className="search-input-wrap">
-            <Search size={14} />
-            <input
-              type="text"
-              placeholder="搜索错题…"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-          </label>
+      {/* Stats */}
+      <div className="metric-grid compact">
+        <motion.div
+          className="metric-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <p className="metric-label">总错题数</p>
+          <p className="metric-value">{wrongAnswers.length}</p>
+        </motion.div>
+        <motion.div
+          className="metric-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.4 }}
+        >
+          <p className="metric-label">待复习</p>
+          <p className="metric-value">{unmastered.length}</p>
+        </motion.div>
+        <motion.div
+          className="metric-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16, duration: 0.4 }}
+        >
+          <p className="metric-label">掌握率</p>
+          <p className="metric-value">{masteryRate}%</p>
+        </motion.div>
+      </div>
+
+      {/* Mastery Progress */}
+      <div className="panel mt-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={16} className="text-[var(--blue)]" />
+            <span className="text-sm font-medium">掌握进度</span>
+          </div>
+          <span className="text-sm font-bold text-[var(--blue)]">{masteryRate}%</span>
+        </div>
+        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[var(--border)]">
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-[var(--blue)] to-[var(--cyan)]"
+            initial={{ width: 0 }}
+            animate={{ width: `${masteryRate}%` }}
+            transition={{ duration: 1, delay: 0.3 }}
+          />
+        </div>
+      </div>
+
+      {/* Unmastered */}
+      <section className="section-block mt-5">
+        <div className="section-head compact">
+          <h2 className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-[var(--red)]" />
+            待复习 ({unmastered.length})
+          </h2>
         </div>
 
-        <div className="row-actions">
-          <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw size={14} />
-            {loading ? "刷新中" : "刷新错题"}
-          </button>
-        </div>
-
-        <div className="list-grid">
-          {filtered.map((item) => (
-            <article key={item.id} className="list-card">
-              <p className="list-meta">
-                {item.category} · {item.level}
-              </p>
-              <h3>{item.title}</h3>
-              <div className="row-actions">
-                <button type="button" className="btn btn-accent" onClick={() => showToast("已加入复习队列")}>
-                  <Target size={14} />
-                  去复习
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    toggleMastered(item.id);
-                    showToast(item.mastered ? "已取消掌握标记" : "已标记为掌握");
-                  }}
-                >
-                  <Check size={14} />
-                  {item.mastered ? "取消掌握" : "标记掌握"}
-                </button>
-              </div>
-            </article>
-          ))}
-          {filtered.length === 0 && (
-            <article className="list-card">
-              <h3>暂无错题</h3>
-              <p className="list-meta">请先完成一轮测试，错题会自动汇总到这里。</p>
-            </article>
-          )}
-        </div>
+        {unmastered.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle}
+            title="太棒了！"
+            description="所有错题都已掌握，继续保持"
+          />
+        ) : (
+          <div className="list-grid">
+            {unmastered.map((w, i) => (
+              <motion.div
+                key={w.id}
+                className="list-card"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06, duration: 0.3 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="badge danger">{w.direction}</span>
+                  <span className="text-xs text-[var(--subtle)]">
+                    已复习 {w.reviewCount} 次
+                  </span>
+                </div>
+                <h3 className="mt-2">{w.question}</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p className="text-[var(--red)]">
+                    你的答案：{w.yourAnswer}
+                  </p>
+                  <p className="text-[var(--green)]">
+                    正确答案：{w.correctAnswer}
+                  </p>
+                </div>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    onClick={() => toggleMastered(w.id)}
+                  >
+                    <CheckCircle size={14} />
+                    标记掌握
+                  </button>
+                  <button type="button" className="btn btn-ghost">
+                    <BookOpen size={14} />
+                    查看解析
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </section>
+
+      {/* Mastered */}
+      {mastered.length > 0 && (
+        <section className="section-block">
+          <div className="section-head compact">
+            <h2 className="flex items-center gap-2">
+              <CheckCircle size={16} className="text-[var(--green)]" />
+              已掌握 ({mastered.length})
+            </h2>
+          </div>
+          <div className="list-grid">
+            {mastered.map((w, i) => (
+              <motion.div
+                key={w.id}
+                className="list-card opacity-70"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 0.7, y: 0 }}
+                transition={{ delay: i * 0.06, duration: 0.3 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="badge success">{w.direction}</span>
+                  <span className="text-xs text-[var(--subtle)]">
+                    复习 {w.reviewCount} 次
+                  </span>
+                </div>
+                <h3 className="mt-2">{w.question}</h3>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => toggleMastered(w.id)}
+                  >
+                    <RotateCcw size={14} />
+                    重新复习
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

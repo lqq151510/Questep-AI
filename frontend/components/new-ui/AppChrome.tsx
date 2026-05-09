@@ -1,97 +1,88 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { NAV_ITEMS } from "@/components/new-ui/nav-config";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
-type AppChromeProps = {
-  children: ReactNode;
-};
+const navLinks = [
+  { href: "/home", label: "总览" },
+  { href: "/ai-test", label: "AI测试" },
+  { href: "/ai-interviewer", label: "AI面试官" },
+  { href: "/ai-qa", label: "AI问答" },
+  { href: "/knowledge-base", label: "知识库" },
+  { href: "/question-bank", label: "题库" },
+  { href: "/wrong-answers", label: "错题本" },
+  { href: "/interview-tips", label: "面试技巧" },
+];
 
-function isActive(pathname: string, href: string) {
-  if (href === "/") {
-    return pathname === "/";
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-export function AppChrome({ children }: AppChromeProps) {
+export default function AppChrome() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Close mobile menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 22 }, (_, index) => ({
-        id: index,
-        style: {
-          left: `${(index * 17) % 100}%`,
-          animationDelay: `${-index * 0.7}s`,
-          animationDuration: `${11 + (index % 6) * 1.3}s`
-        }
-      })),
-    []
-  );
+  // Close mobile menu on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
-    <div className="app-root">
-      <div className="glow-bg" />
-      <div className="particle-layer" aria-hidden>
-        {particles.map((particle) => (
-          <span key={particle.id} className="particle-dot" style={particle.style} />
-        ))}
-      </div>
-
-      <header className="top-nav">
+    <>
+      <nav className="top-nav">
         <div className="top-nav-inner">
           <Link href="/" className="brand-logo">
             <span className="brand-mark">AI</span>
-            <span className="brand-text">Interview Studio</span>
+            <span>面试训练</span>
           </Link>
 
-          <nav className="desktop-nav" aria-label="主导航">
-            {NAV_ITEMS.map((item) => (
+          <div className="desktop-nav">
+            {navLinks.map((link) => (
               <Link
-                key={item.href}
-                href={item.href}
-                className={isActive(pathname, item.href) ? "nav-link active" : "nav-link"}
+                key={link.href}
+                href={link.href}
+                className={`nav-link ${pathname === link.href ? "active" : ""}`}
               >
-                {item.label}
+                {link.label}
               </Link>
             ))}
-          </nav>
+          </div>
 
-          <button
-            type="button"
-            className="menu-toggle"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            aria-label="切换导航菜单"
-            aria-expanded={menuOpen}
-          >
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              type="button"
+              className="menu-toggle"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label={menuOpen ? "关闭菜单" : "打开菜单"}
+              aria-expanded={menuOpen}
+            >
+              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
-      </header>
-
-      <nav className={menuOpen ? "mobile-nav active" : "mobile-nav"} aria-label="移动端导航">
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={isActive(pathname, item.href) ? "mobile-link active" : "mobile-link"}
-          >
-            {item.label}
-          </Link>
-        ))}
       </nav>
 
-      <main className="page-fade">{children}</main>
-    </div>
+      {/* Mobile dropdown */}
+      <div className={`mobile-nav ${menuOpen ? "active" : ""}`}>
+        {navLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`mobile-link ${pathname === link.href ? "active" : ""}`}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </div>
+    </>
   );
 }

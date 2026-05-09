@@ -1,144 +1,161 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Activity, Database, Gauge, GitBranch, Layers, RefreshCw } from "lucide-react";
-import { MetricCard } from "@/components/new-ui/cards";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import {
+  BrainCircuit,
+  MessageSquare,
+  BookOpen,
+  ClipboardList,
+  AlertTriangle,
+  Lightbulb,
+  Target,
+  Zap,
+  Award,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { listMaterials, listQuestions, toErrorMessage } from "@/lib/interview-api";
+import { MetricCard } from "@/components/new-ui/cards";
 
-const steps = [
-  "上传资料并自动解析",
-  "AI 生成专项题目",
-  "模拟面试追问训练",
-  "错题归档与二次强化",
-  "周维度学习报告"
-] as const;
+const metrics = [
+  { label: "已完成测试", value: 42, hint: "本周 +5", trend: "up" as const, trendValue: "+12%" },
+  { label: "模拟面试", value: 18, hint: "平均评分 85", trend: "up" as const, trendValue: "+8%" },
+  { label: "掌握知识点", value: 156, hint: "共 200 个", trend: "up" as const, trendValue: "+15" },
+  { label: "错题复习", value: 23, hint: "待复习", trend: "neutral" as const, trendValue: "进行中" },
+];
 
 const stack = [
-  { label: "Frontend", value: "Next.js + React 19", icon: <Layers size={16} /> },
-  { label: "Backend", value: "Spring Boot 3.3", icon: <Activity size={16} /> },
-  { label: "Storage", value: "MySQL + 本地文件", icon: <Database size={16} /> },
-  { label: "Pipeline", value: "任务追踪 + 异步记录", icon: <GitBranch size={16} /> }
-] as const;
+  { icon: BrainCircuit, label: "AI 引擎", value: "GPT-4" },
+  { icon: Target, label: "题库覆盖", value: "12 方向" },
+  { icon: Zap, label: "响应速度", value: "< 1s" },
+  { icon: Award, label: "评分维度", value: "6 维度" },
+];
 
-const WRONG_BOOK_KEY = "wrong_question_records";
+const trainingSteps = [
+  { num: "01", title: "选择方向", desc: "Java / 前端 / Go / 算法", active: true },
+  { num: "02", title: "AI 测试", desc: "智能出题，即时反馈", active: false },
+  { num: "03", title: "模拟面试", desc: "真实场景，多维评分", active: false },
+  { num: "04", title: "错题复习", desc: "薄弱点，针对性提升", active: false },
+];
 
-function readWrongCount(): number {
-  if (typeof window === "undefined") return 0;
-  const raw = window.localStorage.getItem(WRONG_BOOK_KEY);
-  if (!raw) return 0;
-  try {
-    const parsed = JSON.parse(raw) as Array<{ mastered?: boolean }>;
-    return parsed.filter((item) => !item.mastered).length;
-  } catch {
-    return 0;
-  }
-}
+const quickLinks = [
+  { icon: BrainCircuit, title: "AI 测试", desc: "快速开始技术测试", href: "/ai-test", color: "var(--blue)" },
+  { icon: MessageSquare, title: "AI 面试官", desc: "模拟真实面试", href: "/ai-interviewer", color: "var(--cyan)" },
+  { icon: BookOpen, title: "知识库", desc: "管理学习资料", href: "/knowledge-base", color: "var(--green)" },
+  { icon: ClipboardList, title: "题库", desc: "海量真题练习", href: "/question-bank", color: "var(--yellow)" },
+  { icon: AlertTriangle, title: "错题本", desc: "查看待复习错题", href: "/wrong-answers", color: "var(--red)" },
+  { icon: Lightbulb, title: "面试技巧", desc: "阅读经验文章", href: "/interview-tips", color: "var(--blue)" },
+];
 
-export default function HomeOverviewPage() {
-  const [activeStep, setActiveStep] = useState(0);
-  const [materialCount, setMaterialCount] = useState(0);
-  const [runningTasks, setRunningTasks] = useState(0);
-  const [questionCount, setQuestionCount] = useState(0);
-  const [wrongCount, setWrongCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [errorHint, setErrorHint] = useState("");
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % steps.length);
-    }, 2600);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const refresh = async () => {
-    setLoading(true);
-    setErrorHint("");
-    try {
-      const [materials, questions] = await Promise.all([listMaterials(), listQuestions(100)]);
-      setMaterialCount(materials.length);
-      setRunningTasks(
-        materials.filter((item) => {
-          const status = String(item.parseStatus ?? "").toUpperCase();
-          return status === "PENDING" || status === "PROCESSING";
-        }).length
-      );
-      setQuestionCount(questions.length);
-      setWrongCount(readWrongCount());
-    } catch (error) {
-      setErrorHint(toErrorMessage(error, "加载总览数据失败"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void refresh();
-  }, []);
-
-  const completionRate = useMemo(() => {
-    if (questionCount === 0) return 0;
-    const done = Math.max(questionCount - wrongCount, 0);
-    return Math.min(100, Math.round((done / questionCount) * 100));
-  }, [questionCount, wrongCount]);
-
+export default function HomePage() {
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="System Overview"
-        title="面试训练全链路总览"
-        description="把资料、题目、面试、错题和复盘串成统一训练流，组件化页面支持持续演进。"
+        kicker="工作台"
+        title="学习总览"
+        description="查看你的学习进度和训练数据，快速进入各个功能模块。"
       />
 
-      <div className="row-actions">
-        <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw size={14} />
-          {loading ? "刷新中" : "刷新总览"}
-        </button>
-      </div>
-      {errorHint && <p className="meta-text">{errorHint}</p>}
-
+      {/* Metrics */}
       <section className="metric-grid">
-        <MetricCard label="资料总数" value={String(materialCount)} hint="来源：/api/v1/materials" />
-        <MetricCard label="进行中任务" value={String(runningTasks)} hint="按资料解析状态推断" />
-        <MetricCard label="题库规模" value={String(questionCount)} hint="来源：/api/v1/quizzes/questions" />
-        <MetricCard label="阶段完成率" value={`${completionRate}%`} hint="按题库总量与错题本估算" />
+        {metrics.map((m, i) => (
+          <MetricCard key={m.label} {...m} index={i} />
+        ))}
       </section>
 
-      <section className="panel section-stack">
+      <div className="gradient-divider" />
+
+      {/* Quick Links */}
+      <section className="section-block">
         <div className="section-head compact">
-          <h2>技术组件栈</h2>
-          <p>新页面已按模块拆分，可独立扩展功能与动画效果。</p>
+          <h2>快捷入口</h2>
         </div>
-        <div className="stack-grid">
-          {stack.map((item) => (
-            <article key={item.label} className="stack-item">
-              <span className="stack-icon">{item.icon}</span>
-              <p className="stack-label">{item.label}</p>
-              <p className="stack-value">{item.value}</p>
-            </article>
-          ))}
+        <div className="feature-grid">
+          {quickLinks.map((link, i) => {
+            const Icon = link.icon;
+            return (
+              <motion.div
+                key={link.title}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.06, duration: 0.4 }}
+              >
+                <Link href={link.href} className="feature-card">
+                  <span
+                    className="feature-icon"
+                    style={{
+                      background: `linear-gradient(135deg, ${link.color}15, ${link.color}08)`,
+                      color: link.color,
+                    }}
+                  >
+                    <Icon size={20} strokeWidth={1.8} />
+                  </span>
+                  <h3>{link.title}</h3>
+                  <p>{link.desc}</p>
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 
-      <section className="panel timeline-panel">
+      <div className="gradient-divider" />
+
+      {/* Training Steps */}
+      <section className="section-block">
         <div className="section-head compact">
           <h2>训练流程</h2>
-          <p>自动轮播当前步骤，也可手动点击切换。</p>
+          <p>按照推荐流程，系统提升面试能力</p>
         </div>
         <div className="timeline">
-          {steps.map((step, index) => (
-            <button
-              key={step}
-              type="button"
-              className={index === activeStep ? "timeline-step active" : "timeline-step"}
-              onClick={() => setActiveStep(index)}
+          {trainingSteps.map((step, i) => (
+            <motion.div
+              key={step.num}
+              className={`timeline-step ${step.active ? "active" : ""}`}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 + i * 0.08, duration: 0.4 }}
             >
-              <span className="timeline-num">{String(index + 1).padStart(2, "0")}</span>
-              <span>{step}</span>
-              <Gauge size={14} />
-            </button>
+              <span className="timeline-num">{step.num}</span>
+              <div>
+                <span className="font-semibold text-sm">{step.title}</span>
+                <p className="text-xs text-[var(--muted)] mt-0.5">{step.desc}</p>
+              </div>
+              {step.active && (
+                <span className="badge" style={{ color: "var(--blue)", background: "var(--blue-soft)" }}>
+                  进行中
+                </span>
+              )}
+            </motion.div>
           ))}
+        </div>
+      </section>
+
+      <div className="gradient-divider" />
+
+      {/* Tech Stack */}
+      <section className="section-block">
+        <div className="section-head compact">
+          <h2>技术栈</h2>
+        </div>
+        <div className="stack-grid">
+          {stack.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.div
+                key={item.label}
+                className="stack-item"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.06, duration: 0.4 }}
+              >
+                <span className="stack-icon">
+                  <Icon size={20} strokeWidth={1.5} />
+                </span>
+                <p className="stack-label">{item.label}</p>
+                <p className="stack-value">{item.value}</p>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
     </div>

@@ -1,271 +1,183 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FilePlus2, FileText, RefreshCw, Search } from "lucide-react";
-import { PageHero } from "@/components/new-ui/PageHero";
-import { useToast } from "@/components/new-ui/ToastProvider";
+import { useState, useRef } from "react";
+import { motion } from "framer-motion";
 import {
-  generateQuiz,
-  getAsyncTask,
-  listMaterials,
-  toErrorMessage,
-  uploadMaterial,
-  type BackendMaterial
-} from "@/lib/interview-api";
+  BookOpen,
+  Upload,
+  FileText,
+  Trash2,
+  Loader2,
+  CheckCircle,
+  Search,
+} from "lucide-react";
+import { PageHero } from "@/components/new-ui/PageHero";
+import { EmptyState } from "@/components/ui/EmptyState";
 
-type MaterialStatus = "done" | "parsing" | "failed";
-
-type MaterialView = {
-  id: number;
-  name: string;
-  type: string;
-  date: string;
-  status: MaterialStatus;
-  tags: string[];
-  error: string | null;
-};
-
-function normalizeStatus(value?: string): MaterialStatus {
-  const lower = String(value ?? "").toLowerCase();
-  if (lower.includes("fail") || lower.includes("error")) {
-    return "failed";
-  }
-  if (lower.includes("pending") || lower.includes("process") || lower.includes("running")) {
-    return "parsing";
-  }
-  return "done";
-}
-
-function inferTags(material: BackendMaterial): string[] {
-  const name = material.name.toLowerCase();
-  const tags = new Set<string>();
-  if (name.includes("java")) tags.add("Java");
-  if (name.includes("spring")) tags.add("Spring");
-  if (name.includes("mysql")) tags.add("MySQL");
-  if (name.includes("redis")) tags.add("Redis");
-  if (name.includes("system") || name.includes("设计")) tags.add("系统设计");
-  if (tags.size === 0) {
-    tags.add(material.fileType.toUpperCase());
-  }
-  return Array.from(tags);
-}
-
-function formatDate(value?: string): string {
-  if (!value) return "未知时间";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "未知时间";
-  return date.toLocaleDateString("zh-CN");
-}
-
-function toMaterialView(item: BackendMaterial): MaterialView {
-  return {
-    id: item.id,
-    name: item.name,
-    type: item.fileType?.toUpperCase() || "FILE",
-    date: formatDate(item.updatedAt ?? item.createdAt),
-    status: normalizeStatus(item.parseStatus),
-    tags: inferTags(item),
-    error: item.parseErrorMsg ?? null
-  };
-}
+const mockMaterials = [
+  {
+    id: 1,
+    name: "Java 并发编程实战.pdf",
+    type: "PDF",
+    size: "2.4 MB",
+    status: "已解析" as const,
+    date: "2024-01-15",
+  },
+  {
+    id: 2,
+    name: "Redis 设计与实现.md",
+    type: "Markdown",
+    size: "156 KB",
+    status: "已解析" as const,
+    date: "2024-01-14",
+  },
+  {
+    id: 3,
+    name: "Spring Boot 源码分析.txt",
+    type: "Text",
+    size: "89 KB",
+    status: "解析中" as const,
+    date: "2024-01-13",
+  },
+];
 
 export default function KnowledgeBasePage() {
-  const { showToast } = useToast();
-  const [keyword, setKeyword] = useState("");
-  const [materials, setMaterials] = useState<MaterialView[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [materials, setMaterials] = useState(mockMaterials);
+  const [search, setSearch] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await listMaterials();
-      setMaterials(result.map(toMaterialView));
-    } catch (error) {
-      showToast(toErrorMessage(error, "加载资料失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const refreshAfterTaskSettles = useCallback(async (taskNo: string) => {
-    for (let attempt = 0; attempt < 10; attempt++) {
-      await delay(2500);
-      const task = await getAsyncTask(taskNo);
-      const status = String(task.status ?? "").toUpperCase();
-      if (status === "SUCCESS" || status === "FAILED") {
-        showToast(status === "SUCCESS" ? "资料解析完成" : task.errorMsg ?? "资料解析失败");
-        await refresh();
-        return;
-      }
-    }
-  }, [refresh, showToast]);
-
-  const visibleMaterials = useMemo(() => {
-    const query = keyword.trim().toLowerCase();
-    if (!query) return materials;
-    return materials.filter((item) => {
-      const text = `${item.name} ${item.type} ${item.tags.join(" ")}`.toLowerCase();
-      return text.includes(query);
-    });
-  }, [keyword, materials]);
-
-  const stats = useMemo(
-    () => ({
-      total: materials.length,
-      done: materials.filter((item) => item.status === "done").length,
-      tags: new Set(materials.flatMap((item) => item.tags)).size
-    }),
-    [materials]
+  const filtered = materials.filter((m) =>
+    m.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleFileChoose = () => {
+  const handleUpload = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const file = files[0];
+    const newMaterial = {
+      id: Date.now(),
+      name: file.name,
+      type: file.name.split(".").pop()?.toUpperCase() || "File",
+      size: (file.size / 1024).toFixed(0) + " KB",
+      status: "解析中" as const,
+      date: new Date().toISOString().split("T")[0],
+    };
+    setMaterials((prev) => [newMaterial, ...prev]);
 
-    setUploading(true);
-    try {
-      const result = await uploadMaterial(file);
-      showToast(result.task?.taskNo ? `上传成功，任务已入队：${result.task.taskNo}` : "上传成功，任务已入队");
-      await refresh();
-      if (result.task?.taskNo) {
-        void refreshAfterTaskSettles(result.task.taskNo);
-      }
-    } catch (error) {
-      showToast(toErrorMessage(error, "上传失败"));
-    } finally {
-      setUploading(false);
-      event.target.value = "";
-    }
+    setTimeout(() => {
+      setMaterials((prev) =>
+        prev.map((m) => (m.id === newMaterial.id ? { ...m, status: "已解析" as const } : m))
+      );
+    }, 3000);
   };
 
-  const handleGenerate = async (materialId: number) => {
-    try {
-      const result = await generateQuiz({
-        materialIds: [materialId],
-        questionType: "short",
-        difficulty: 3,
-        count: 3,
-        interviewMode: true
-      });
-      const size = result.questions?.length ?? 0;
-      showToast(`组卷完成，生成 ${size} 道题`);
-    } catch (error) {
-      showToast(toErrorMessage(error, "组卷失败"));
-    }
+  const deleteMaterial = (id: number) => {
+    setMaterials((prev) => prev.filter((m) => m.id !== id));
   };
 
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="Knowledge Hub"
-        title="个人知识库"
-        description="上传资料并自动解析成知识点，快速联动生成题目与复习任务。"
+        kicker="知识库"
+        title="资料管理"
+        description="上传学习资料，AI 自动解析并生成结构化知识，随时检索复习。"
       />
 
-      <section className="metric-grid compact">
-        <article className="metric-card">
-          <p className="metric-label">资料总数</p>
-          <p className="metric-value">{stats.total}</p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">已解析</p>
-          <p className="metric-value">{stats.done}</p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">知识标签</p>
-          <p className="metric-value">{stats.tags}</p>
-        </article>
-      </section>
-
-      <section className="panel">
+      {/* Upload Area */}
+      <div
+        className={`upload-area ${dragOver ? "border-[var(--blue)] bg-[var(--blue-soft)]" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+        }}
+        onClick={handleUpload}
+      >
+        <Upload size={28} className="text-[var(--blue)]" />
+        <span>点击或拖拽上传资料</span>
+        <small>支持 PDF、TXT、Markdown 格式</small>
         <input
           ref={fileInputRef}
           type="file"
-          hidden
-          onChange={(event) => void handleFileChange(event)}
-          accept=".txt,.md,.csv,.json"
+          accept=".pdf,.txt,.md"
+          className="hidden"
+          onChange={handleFileChange}
         />
-        <button type="button" className="upload-area" onClick={handleFileChoose} disabled={uploading}>
-          <FilePlus2 size={20} />
-          <span>{uploading ? "上传中..." : "点击上传学习资料"}</span>
-          <small>支持 TXT / Markdown / CSV / JSON，最大 10MB</small>
-        </button>
+      </div>
 
-        <div className="search-row">
-          <h2>我的资料</h2>
-          <div className="row-actions">
-            <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-              <RefreshCw size={14} />
-              {loading ? "刷新中" : "刷新"}
-            </button>
-            <label className="search-input-wrap">
-              <Search size={14} />
-              <input
-                type="text"
-                placeholder="搜索资料或标签…"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-              />
-            </label>
-          </div>
+      {/* Search */}
+      <div className="search-row">
+        <h2>我的资料</h2>
+        <div className="search-input-wrap">
+          <Search size={14} />
+          <input
+            type="text"
+            placeholder="搜索资料..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+      </div>
 
+      {/* Materials Grid */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title="暂无资料"
+          description="上传你的学习资料，AI 将自动解析并生成知识库"
+          action={{ label: "上传资料", onClick: handleUpload }}
+        />
+      ) : (
         <div className="material-grid">
-          {visibleMaterials.map((material) => (
-            <article key={material.id} className="material-card">
+          {filtered.map((m, i) => (
+            <motion.div
+              key={m.id}
+              className="material-card"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06, duration: 0.4 }}
+            >
               <div className="material-head">
-                <FileText size={18} />
-                <span
-                  className={
-                    material.status === "done"
-                      ? "badge success"
-                      : "badge warning"
-                  }
+                <FileText size={20} className="text-[var(--blue)]" />
+                <button
+                  type="button"
+                  className="btn btn-ghost icon-btn"
+                  onClick={() => deleteMaterial(m.id)}
                 >
-                  {material.status === "done" ? "已解析" : material.status === "failed" ? "失败" : "解析中"}
-                </span>
-              </div>
-              <h3>{material.name}</h3>
-              <p className="meta-text">
-                {material.date} · {material.type}
-              </p>
-              <div className="tag-row">
-                {material.tags.map((tag) => (
-                  <span key={`${material.id}-${tag}`} className="tag">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              {material.error && <p className="meta-text">失败原因：{material.error}</p>}
-              <div className="row-actions">
-                <button type="button" className="btn btn-accent" onClick={() => void handleGenerate(material.id)}>
-                  生成题目
+                  <Trash2 size={14} />
                 </button>
               </div>
-            </article>
+              <h3 className="truncate">{m.name}</h3>
+              <p className="meta-text">
+                {m.type} · {m.size} · {m.date}
+              </p>
+              <div className="tag-row">
+                <span
+                  className={`badge ${
+                    m.status === "已解析" ? "success" : "warning"
+                  }`}
+                >
+                  {m.status === "已解析" ? (
+                    <CheckCircle size={12} />
+                  ) : (
+                    <Loader2 size={12} className="animate-spin" />
+                  )}
+                  {m.status}
+                </span>
+              </div>
+            </motion.div>
           ))}
-          {visibleMaterials.length === 0 && (
-            <article className="material-card">
-              <h3>暂无可展示资料</h3>
-              <p className="meta-text">请先上传资料，或检查当前登录令牌是否有效。</p>
-            </article>
-          )}
         </div>
-      </section>
+      )}
     </div>
   );
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

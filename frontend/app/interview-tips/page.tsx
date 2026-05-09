@@ -1,134 +1,180 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Lightbulb, RefreshCw, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Lightbulb,
+  ChevronDown,
+  ChevronUp,
+  Share2,
+  Bookmark,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { useToast } from "@/components/new-ui/ToastProvider";
-import { listMaterials, listQuestions, toErrorMessage } from "@/lib/interview-api";
 
-type Tip = {
-  id: string;
-  category: "技术准备" | "表达技巧" | "场景应对" | "心态调节";
-  title: string;
-  content: string;
-};
+const categories = [
+  { id: "all", label: "全部", icon: Lightbulb },
+  { id: "java", label: "Java", icon: Lightbulb },
+  { id: "frontend", label: "前端", icon: Lightbulb },
+  { id: "algorithm", label: "算法", icon: Lightbulb },
+  { id: "behavior", label: "行为面试", icon: Lightbulb },
+  { id: "resume", label: "简历技巧", icon: Lightbulb },
+];
 
-const categories = ["全部", "技术准备", "表达技巧", "场景应对", "心态调节"] as const;
-
-function buildTips(materialCount: number, parsedCount: number, questionCount: number): Tip[] {
-  return [
-    {
-      id: "t1",
-      category: "技术准备",
-      title: "先补齐资料覆盖，再追求题量",
-      content: `当前资料 ${materialCount} 份、已解析 ${parsedCount} 份。建议优先把核心项目文档解析完成后再扩题。`
-    },
-    {
-      id: "t2",
-      category: "表达技巧",
-      title: "把题库答案改造成 STAR 表达",
-      content: `你当前题库已有 ${questionCount} 道题。每题用「背景-行动-结果」补充一个真实项目案例，回答会更有说服力。`
-    },
-    {
-      id: "t3",
-      category: "场景应对",
-      title: "追问时优先谈取舍和边界",
-      content: "当被追问时，先给结论，再说明为什么不用其他方案，最后补一条风险与降级路径。"
-    },
-    {
-      id: "t4",
-      category: "心态调节",
-      title: "建立 5 分钟热身清单",
-      content: "面试前快速过一遍：最近项目亮点、两条高频故障复盘、一个性能优化案例。"
-    }
-  ];
-}
+const tips = [
+  {
+    id: 1,
+    category: "java",
+    title: "Java 面试必考点：HashMap 源码解析",
+    content:
+      "HashMap 是 Java 面试中的高频考点。JDK 1.8 之前使用数组+链表，1.8 之后引入了红黑树优化。当链表长度超过 8 且数组长度超过 64 时，链表会转换为红黑树。\n\n关键参数：\n- 默认初始容量：16\n- 默认负载因子：0.75\n- 扩容阈值：容量 × 负载因子\n\n面试建议：不仅要说出数据结构，还要能解释为什么这样设计，以及线程安全问题。",
+    read: false,
+    bookmarked: false,
+  },
+  {
+    id: 2,
+    category: "behavior",
+    title: "行为面试：STAR 法则的正确使用",
+    content:
+      "STAR 法则是回答行为面试问题的黄金框架：\n\nS - Situation（情境）：描述当时的情境\nT - Task（任务）：你需要完成的任务\nA - Action（行动）：你采取了哪些行动\nR - Result（结果）：最终取得了什么结果\n\n常见题目：\n- 描述一次你解决冲突的经历\n- 举例说明你如何带领团队完成目标\n- 谈谈你失败的一次经历以及学到的教训",
+    read: true,
+    bookmarked: true,
+  },
+  {
+    id: 3,
+    category: "algorithm",
+    title: "算法面试：如何优雅地处理边界条件",
+    content:
+      "算法面试中，边界条件的处理往往是区分优秀和普通候选人的关键。\n\n常见边界：\n- 空输入 / null\n- 单元素数组\n- 极大/极小值\n- 重复元素\n\n建议：在写代码前先列出所有可能的边界情况，与面试官确认后再开始编码。",
+    read: false,
+    bookmarked: false,
+  },
+  {
+    id: 4,
+    category: "resume",
+    title: "技术简历：如何让 HR 一眼看中你",
+    content:
+      "技术简历的核心原则：\n\n1. 量化成果：使用数字说话\n   - 优化后 QPS 提升 300%\n   - 将响应时间从 2s 降至 200ms\n\n2. 突出技术栈：明确列出使用的技术\n\n3. 项目描述采用 PAR 结构：\n   - Problem（问题）\n   - Action（行动）\n   - Result（结果）\n\n4. 控制篇幅：1-2 页为佳，重点突出最近 2-3 个项目",
+    read: false,
+    bookmarked: false,
+  },
+];
 
 export default function InterviewTipsPage() {
-  const { showToast } = useToast();
-  const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]>("全部");
-  const [tips, setTips] = useState<Tip[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [tipsList, setTipsList] = useState(tips);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [materials, questions] = await Promise.all([listMaterials(), listQuestions(100)]);
-      const parsedCount = materials.filter((item) => String(item.parseStatus ?? "").toUpperCase() === "SUCCESS").length;
-      setTips(buildTips(materials.length, parsedCount, questions.length));
-    } catch (error) {
-      showToast(toErrorMessage(error, "加载建议失败"));
-      setTips(buildTips(0, 0, 0));
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  const filtered =
+    activeCategory === "all"
+      ? tipsList
+      : tipsList.filter((t) => t.category === activeCategory);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const toggleExpand = (id: number) => {
+    setExpanded((prev) => (prev === id ? null : id));
+    setTipsList((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, read: true } : t))
+    );
+  };
 
-  const visibleTips = useMemo(() => {
-    if (activeCategory === "全部") {
-      return tips;
-    }
-    return tips.filter((tip) => tip.category === activeCategory);
-  }, [activeCategory, tips]);
+  const toggleBookmark = (id: number) => {
+    setTipsList((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, bookmarked: !t.bookmarked } : t))
+    );
+  };
 
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="Interview Tips"
-        title="面试技巧库"
-        description="基于你当前资料与题库的真实状态，动态生成可执行建议。"
+        kicker="面试技巧"
+        title="经验分享"
+        description="精选面试攻略和技巧文章，助你掌握面试中的加分细节。"
       />
 
-      <section className="panel">
-        <div className="row-actions">
-          <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw size={14} />
-            {loading ? "刷新中" : "刷新建议"}
-          </button>
-        </div>
-
-        <div className="chip-row">
-          {categories.map((category) => (
+      {/* Categories */}
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {categories.map((cat) => {
+          const Icon = cat.icon;
+          return (
             <button
-              key={category}
+              key={cat.id}
               type="button"
-              className={activeCategory === category ? "chip active" : "chip"}
-              onClick={() => {
-                setActiveCategory(category);
-                showToast(`已切换到「${category}」`);
-              }}
+              className={`chip flex-shrink-0 ${activeCategory === cat.id ? "active" : ""}`}
+              onClick={() => setActiveCategory(cat.id)}
             >
-              {category}
+              <Icon size={14} />
+              {cat.label}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        <div className="tips-grid">
-          {visibleTips.map((tip) => (
-            <article key={tip.id} className="tip-card">
-              <p className="list-meta">
-                <Sparkles size={14} /> {tip.category}
-              </p>
+      {/* Tips List */}
+      <div className="tips-grid mt-5">
+        {filtered.map((tip, i) => {
+          const isExpanded = expanded === tip.id;
+          return (
+            <motion.div
+              key={tip.id}
+              className="tip-card"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06, duration: 0.3 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {!tip.read && (
+                    <span className="h-2 w-2 rounded-full bg-[var(--blue)]" />
+                  )}
+                  <span className="badge" style={{ color: "var(--blue)", background: "var(--blue-soft)" }}>
+                    {categories.find((c) => c.id === tip.category)?.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="btn btn-ghost icon-btn"
+                    onClick={() => toggleBookmark(tip.id)}
+                  >
+                    <Bookmark
+                      size={14}
+                      className={tip.bookmarked ? "fill-[var(--blue)] text-[var(--blue)]" : ""}
+                    />
+                  </button>
+                  <button type="button" className="btn btn-ghost icon-btn">
+                    <Share2 size={14} />
+                  </button>
+                </div>
+              </div>
+
               <h3>{tip.title}</h3>
-              <p>{tip.content}</p>
-              <button type="button" className="btn" onClick={() => showToast("已加入今日练习计划")}>
-                <Lightbulb size={14} />
-                加入今日计划
+
+              <div
+                className={`overflow-hidden transition-all ${isExpanded ? "max-h-[500px]" : "max-h-0"}`}
+              >
+                <p className="whitespace-pre-wrap">{tip.content}</p>
+              </div>
+
+              <button
+                type="button"
+                className="mt-3 flex items-center gap-1 text-sm font-medium text-[var(--blue)]"
+                onClick={() => toggleExpand(tip.id)}
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp size={14} />
+                    收起
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={14} />
+                    展开阅读
+                  </>
+                )}
               </button>
-            </article>
-          ))}
-          {visibleTips.length === 0 && (
-            <article className="tip-card">
-              <h3>暂无建议</h3>
-              <p>请先上传资料并生成题目，系统会自动给出针对性建议。</p>
-            </article>
-          )}
-        </div>
-      </section>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,159 +1,216 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { PlusCircle, RefreshCw, Search } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  ClipboardList,
+  Search,
+  Bookmark,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { useToast } from "@/components/new-ui/ToastProvider";
-import { listQuestions, toErrorMessage, type BackendQuestion } from "@/lib/interview-api";
+import { EmptyState } from "@/components/ui/EmptyState";
 
-type QuestionItem = {
-  id: string;
-  title: string;
-  category: "Java" | "Spring" | "MySQL" | "Redis" | "系统设计" | "通用";
-  difficulty: "初级" | "中级" | "高级";
-  type: "单选" | "多选" | "简答" | "编程" | "面试";
+const directions = ["全部", "Java", "前端", "Go", "算法", "数据库", "系统设计"];
+const difficulties = ["全部", "简单", "中等", "困难"];
+const types = ["全部", "单选题", "多选题", "判断题", "简答题"];
+
+const mockQuestions = [
+  {
+    id: 1,
+    question: "Java 中 HashMap 的底层数据结构是什么？",
+    direction: "Java",
+    difficulty: "中等",
+    type: "单选题",
+    bookmarked: false,
+  },
+  {
+    id: 2,
+    question: "Redis 缓存穿透、击穿、雪崩的区别和解决方案？",
+    direction: "数据库",
+    difficulty: "困难",
+    type: "简答题",
+    bookmarked: true,
+  },
+  {
+    id: 3,
+    question: "CSS 中 flex 布局的 justify-content 有哪些取值？",
+    direction: "前端",
+    difficulty: "简单",
+    type: "多选题",
+    bookmarked: false,
+  },
+  {
+    id: 4,
+    question: "Go 语言中的 goroutine 和线程有什么区别？",
+    direction: "Go",
+    difficulty: "中等",
+    type: "简答题",
+    bookmarked: false,
+  },
+  {
+    id: 5,
+    question: "快速排序的时间复杂度是多少？",
+    direction: "算法",
+    difficulty: "简单",
+    type: "单选题",
+    bookmarked: true,
+  },
+];
+
+const difficultyColor: Record<string, string> = {
+  简单: "var(--green)",
+  中等: "var(--yellow)",
+  困难: "var(--red)",
 };
 
-const categories = ["全部", "Java", "Spring", "MySQL", "Redis", "系统设计", "通用"] as const;
-const levels = ["全部", "初级", "中级", "高级"] as const;
-const types = ["全部", "单选", "多选", "简答", "编程", "面试"] as const;
-
-function inferCategory(stem: string): QuestionItem["category"] {
-  const lower = stem.toLowerCase();
-  if (lower.includes("spring")) return "Spring";
-  if (lower.includes("mysql") || lower.includes("索引") || lower.includes("事务")) return "MySQL";
-  if (lower.includes("redis")) return "Redis";
-  if (lower.includes("系统设计") || lower.includes("高并发")) return "系统设计";
-  if (lower.includes("java") || lower.includes("jvm") || lower.includes("线程")) return "Java";
-  return "通用";
-}
-
-function normalizeDifficulty(value?: number | null): QuestionItem["difficulty"] {
-  const raw = value ?? 3;
-  if (raw <= 2) return "初级";
-  if (raw <= 3) return "中级";
-  return "高级";
-}
-
-function normalizeType(value?: string): QuestionItem["type"] {
-  const upper = String(value ?? "").toUpperCase();
-  if (upper.includes("MULTIPLE")) return "多选";
-  if (upper.includes("SINGLE")) return "单选";
-  if (upper.includes("CODING") || upper.includes("CODE")) return "编程";
-  if (upper.includes("INTERVIEW")) return "面试";
-  return "简答";
-}
-
-function toQuestionItem(question: BackendQuestion): QuestionItem {
-  return {
-    id: String(question.id),
-    title: question.stemText,
-    category: inferCategory(question.stemText),
-    difficulty: normalizeDifficulty(question.difficulty),
-    type: normalizeType(question.questionType)
-  };
-}
-
 export default function QuestionBankPage() {
-  const { showToast } = useToast();
-  const [items, setItems] = useState<QuestionItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [category, setCategory] = useState<(typeof categories)[number]>("全部");
-  const [level, setLevel] = useState<(typeof levels)[number]>("全部");
-  const [type, setType] = useState<(typeof types)[number]>("全部");
-  const [keyword, setKeyword] = useState("");
+  const [direction, setDirection] = useState("全部");
+  const [difficulty, setDifficulty] = useState("全部");
+  const [type, setType] = useState("全部");
+  const [search, setSearch] = useState("");
+  const [questions, setQuestions] = useState(mockQuestions);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const questions = await listQuestions(100);
-      setItems(questions.map(toQuestionItem));
-    } catch (error) {
-      showToast(toErrorMessage(error, "加载题库失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  const filtered = questions.filter((q) => {
+    const matchDir = direction === "全部" || q.direction === direction;
+    const matchDiff = difficulty === "全部" || q.difficulty === difficulty;
+    const matchType = type === "全部" || q.type === type;
+    const matchSearch = q.question.toLowerCase().includes(search.toLowerCase());
+    return matchDir && matchDiff && matchType && matchSearch;
+  });
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const filtered = useMemo(() => {
-    const text = keyword.trim().toLowerCase();
-    return items.filter((item) => {
-      const categoryPass = category === "全部" || item.category === category;
-      const levelPass = level === "全部" || item.difficulty === level;
-      const typePass = type === "全部" || item.type === type;
-      const textPass = !text || item.title.toLowerCase().includes(text);
-      return categoryPass && levelPass && typePass && textPass;
-    });
-  }, [category, items, keyword, level, type]);
+  const toggleBookmark = (id: number) => {
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, bookmarked: !q.bookmarked } : q))
+    );
+  };
 
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="Question Bank"
-        title="题库中心"
-        description="按方向、难度和题型筛选题目，快速加入练习卷。"
+        kicker="题库"
+        title="面试题库"
+        description="海量面试真题，支持按方向、难度筛选，针对性提升薄弱环节。"
       />
 
-      <section className="panel">
-        <div className="filter-grid">
-          <select className="input-select" value={category} onChange={(event) => setCategory(event.target.value as (typeof categories)[number])}>
-            {categories.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <select className="input-select" value={level} onChange={(event) => setLevel(event.target.value as (typeof levels)[number])}>
-            {levels.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <select className="input-select" value={type} onChange={(event) => setType(event.target.value as (typeof types)[number])}>
-            {types.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-          <label className="search-input-wrap">
-            <Search size={14} />
-            <input
-              type="text"
-              placeholder="搜索题目…"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="row-actions">
-          <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw size={14} />
-            {loading ? "加载中" : "刷新题库"}
-          </button>
-        </div>
-
-        <div className="list-grid">
-          {filtered.map((item) => (
-            <article key={item.id} className="list-card">
-              <p className="list-meta">
-                {item.category} · {item.difficulty} · {item.type}
-              </p>
-              <h3>{item.title}</h3>
-              <button type="button" className="btn btn-accent" onClick={() => showToast("已加入练习队列")}>
-                <PlusCircle size={14} />
-                加入练习
+      {/* Filters */}
+      <div className="panel">
+        <div className="field-group">
+          <p className="field-label">技术方向</p>
+          <div className="chip-row">
+            {directions.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`chip ${direction === d ? "active" : ""}`}
+                onClick={() => setDirection(d)}
+              >
+                {d}
               </button>
-            </article>
-          ))}
-          {filtered.length === 0 && (
-            <article className="list-card">
-              <h3>暂无题目</h3>
-              <p className="list-meta">请先在知识库上传资料并生成题目。</p>
-            </article>
-          )}
+            ))}
+          </div>
         </div>
-      </section>
+
+        <div className="field-group">
+          <p className="field-label">难度</p>
+          <div className="chip-row">
+            {difficulties.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`chip ${difficulty === d ? "active" : ""}`}
+                onClick={() => setDifficulty(d)}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field-group">
+          <p className="field-label">题型</p>
+          <div className="chip-row">
+            {types.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`chip ${type === t ? "active" : ""}`}
+                onClick={() => setType(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Results */}
+      <div className="search-row mt-5">
+        <h2>
+          题目列表
+          <span className="ml-2 text-sm font-normal text-[var(--muted)]">
+            共 {filtered.length} 题
+          </span>
+        </h2>
+        <div className="search-input-wrap">
+          <Search size={14} />
+          <input
+            type="text"
+            placeholder="搜索题目..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Questions List */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="暂无题目"
+          description="尝试调整筛选条件或搜索关键词"
+        />
+      ) : (
+        <div className="list-grid">
+          {filtered.map((q, i) => (
+            <motion.div
+              key={q.id}
+              className="list-card"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.3 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="badge"
+                    style={{
+                      color: difficultyColor[q.difficulty],
+                      background: `${difficultyColor[q.difficulty]}15`,
+                    }}
+                  >
+                    {q.difficulty}
+                  </span>
+                  <span className="badge" style={{ color: "var(--blue)", background: "var(--blue-soft)" }}>
+                    {q.type}
+                  </span>
+                  <span className="text-xs text-[var(--muted)]">{q.direction}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost icon-btn"
+                  onClick={() => toggleBookmark(q.id)}
+                >
+                  <Bookmark
+                    size={14}
+                    className={q.bookmarked ? "fill-[var(--blue)] text-[var(--blue)]" : ""}
+                  />
+                </button>
+              </div>
+              <h3>{q.question}</h3>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

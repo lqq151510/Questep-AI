@@ -1,183 +1,132 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, MessageSquareText, RefreshCw, Send, User } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Send,
+  Bot,
+  User,
+  Lightbulb,
+} from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { useToast } from "@/components/new-ui/ToastProvider";
-import { listQuestions, toErrorMessage, type BackendQuestion } from "@/lib/interview-api";
+
+const quickQuestions = [
+  "Java 中 volatile 关键字的作用是什么？",
+  "Redis 缓存穿透、击穿、雪崩的区别和解决方案？",
+  "Spring Boot 的自动配置原理是什么？",
+  "如何设计一个高并发的秒杀系统？",
+  "MySQL 索引优化有哪些技巧？",
+];
 
 type Message = {
-  id: string;
-  role: "user" | "ai";
-  text: string;
+  role: "ai" | "user";
+  content: string;
 };
 
-function buildAnswer(question: BackendQuestion): string {
-  const parts = [question.referenceAnswer?.trim(), question.analysisText?.trim()].filter(
-    (item): item is string => Boolean(item && item.length > 0)
-  );
-  if (parts.length === 0) {
-    return "建议按定义-原理-场景-边界四段式回答，并结合你的项目经历补充取舍。";
-  }
-  return parts.join("\n");
-}
+const mockMessages: Message[] = [
+  {
+    role: "ai",
+    content: "你好！我是你的 AI 面试助手。有任何技术问题都可以问我，我会为你提供详细的解答和面试建议。",
+  },
+];
 
-function matchQuestion(prompt: string, questions: BackendQuestion[]): BackendQuestion | null {
-  const lower = prompt.toLowerCase();
-  for (const question of questions) {
-    const stem = question.stemText.toLowerCase();
-    if (stem.includes(lower) || lower.includes(stem)) {
-      return question;
-    }
-  }
-  const keywords = lower.split(/[\s，。；、,.!?？]+/).filter((token) => token.length >= 2);
-  let best: { item: BackendQuestion; score: number } | null = null;
-  for (const question of questions) {
-    const stem = question.stemText.toLowerCase();
-    const score = keywords.reduce((sum, token) => (stem.includes(token) ? sum + 1 : sum), 0);
-    if (!best || score > best.score) {
-      best = { item: question, score };
-    }
-  }
-  if (!best || best.score === 0) {
-    return null;
-  }
-  return best.item;
-}
-
-export default function AiQaPage() {
-  const { showToast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: crypto.randomUUID(),
-      role: "ai",
-      text: "你好，我是你的 AI 面试辅导助手。我会优先基于你题库里的真实题目给出回答。"
-    }
-  ]);
+export default function AIQAPage() {
+  const [messages, setMessages] = useState<Message[]>(mockMessages);
   const [input, setInput] = useState("");
-  const [questionBank, setQuestionBank] = useState<BackendQuestion[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listQuestions(80);
-      setQuestionBank(data);
-    } catch (error) {
-      showToast(toErrorMessage(error, "加载题库失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const presets = useMemo(() => {
-    const fromApi = questionBank.slice(0, 5).map((item) => item.stemText);
-    if (fromApi.length > 0) {
-      return fromApi;
-    }
-    return [
-      "volatile 和 synchronized 的区别",
-      "HashMap 为什么线程不安全",
-      "MySQL 索引失效场景",
-      "Redis 持久化策略怎么选",
-      "Spring 事务失效排查路径"
-    ];
-  }, [questionBank]);
 
   const sendMessage = (text: string) => {
-    const clean = text.trim();
-    if (!clean) {
-      return;
-    }
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", text: clean };
+    if (!text.trim()) return;
+    const userMsg = { role: "user" as const, content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
-    window.setTimeout(() => {
-      const matched = matchQuestion(clean, questionBank);
-      const aiText = matched
-        ? buildAnswer(matched)
-        : "题库里暂未命中完全匹配的问题。建议你换个关键词，或先在知识库生成更多题目。";
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: "ai", text: aiText }
-      ]);
-    }, 420);
+    setTimeout(() => {
+      const aiReply = {
+        role: "ai" as const,
+        content: `这是一个很好的问题！关于「${text}」，我来为你详细解答：\n\n1. **核心概念**：首先需要理解其基本原理...\n2. **实际应用**：在实际项目中，通常会...\n3. **面试要点**：回答这个问题时，建议从以下几个方面展开...\n\n希望这个解答对你有帮助！如果还有疑问，可以继续提问。`,
+      };
+      setMessages((prev) => [...prev, aiReply]);
+    }, 1500);
   };
 
   return (
-    <div className="container">
+    <div>
       <PageHero
-        kicker="Live Q&A"
-        title="AI 问答助手"
-        description="优先基于后端题库里的真实题干、参考答案和解析进行问答。"
+        kicker="AI 问答"
+        title="智能问答"
+        description="有任何技术问题都可以向 AI 提问，获取详细的解答和面试建议。"
       />
 
-      <section className="panel qa-panel">
-        <div className="row-actions">
-          <button type="button" className="btn" onClick={() => void refresh()} disabled={loading}>
-            <RefreshCw size={14} />
-            {loading ? "刷新中" : `已加载 ${questionBank.length} 题`}
-          </button>
-        </div>
-
-        <div className="chip-row">
-          {presets.map((preset) => (
-            <button key={preset} type="button" className="chip" onClick={() => sendMessage(preset)}>
-              {preset}
-            </button>
-          ))}
+      <div className="panel chat-panel">
+        <div className="chat-head">
+          <div>
+            <p className="chat-title flex items-center gap-2">
+              <Bot size={16} className="text-[var(--blue)]" />
+              AI 面试助手
+            </p>
+            <p className="chat-subtitle">随时解答你的技术疑问</p>
+          </div>
         </div>
 
         <div className="chat-log">
-          {messages.map((message) => (
-            <article key={message.id} className={message.role === "ai" ? "chat-bubble ai" : "chat-bubble user"}>
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              className={`chat-bubble ${msg.role}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
               <div className="bubble-head">
-                <span>{message.role === "ai" ? <Bot size={14} /> : <User size={14} />}</span>
-                <span>{message.role === "ai" ? "AI 助手" : "你"}</span>
+                {msg.role === "ai" ? <Bot size={14} /> : <User size={14} />}
+                {msg.role === "ai" ? "AI 助手" : "你"}
               </div>
-              <p>{message.text}</p>
-            </article>
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+            </motion.div>
           ))}
         </div>
+
+        {/* Quick Questions */}
+        {messages.length <= 2 && (
+          <div className="mb-4">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+              <Lightbulb size={12} />
+              快捷问题
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {quickQuestions.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="tag hover:border-[var(--blue)] hover:text-[var(--blue)]"
+                  onClick={() => sendMessage(q)}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="chat-input-row">
           <input
             type="text"
             className="chat-input"
-            placeholder="输入你想追问的问题…"
+            placeholder="输入你的问题..."
             value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                sendMessage(input);
-              }
-            }}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage(input)}
           />
           <button
             type="button"
             className="btn btn-accent icon-btn"
-            onClick={() => {
-              if (!input.trim()) {
-                showToast("请先输入问题");
-                return;
-              }
-              sendMessage(input);
-            }}
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim()}
           >
-            <Send size={14} />
+            <Send size={16} />
           </button>
         </div>
-
-        <div className="qa-hint">
-          <MessageSquareText size={14} />
-          建议追问时补充岗位场景，例如「高并发订单系统里如何落地？」
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
