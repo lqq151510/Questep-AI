@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -31,7 +32,7 @@ import java.util.UUID;
 public class MaterialController {
     private static final long MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "TXT", "MD", "CSV", "JSON"
+            "TXT", "MD", "CSV", "JSON", "PDF", "DOCX", "PNG", "JPG", "JPEG"
     );
 
     private final MaterialApplicationService materialApplicationService;
@@ -48,7 +49,7 @@ public class MaterialController {
         String original = sanitizeFilename(file.getOriginalFilename());
         String ext = extractExtension(original);
         if (!ALLOWED_EXTENSIONS.contains(ext)) {
-            throw new IllegalArgumentException("Only text formats are supported in v1: " + ALLOWED_EXTENSIONS);
+            throw new IllegalArgumentException("Unsupported file type: " + ext + ". Allowed: " + ALLOWED_EXTENSIONS);
         }
         Path dir = Path.of(baseDir, LocalDate.now().toString());
         Files.createDirectories(dir);
@@ -62,6 +63,11 @@ public class MaterialController {
 
     @GetMapping
     public ApiResponse<List<Material>> list() { return ApiResponse.ok(materialApplicationService.list(CurrentUser.id())); }
+
+    @PostMapping("/{id}/retry-parse")
+    public ApiResponse<UploadMaterialResult> retryParse(@PathVariable Long id) {
+        return ApiResponse.ok(materialApplicationService.retryParseTask(CurrentUser.id(), id));
+    }
 
     private String sanitizeFilename(String filename) {
         String fallback = "unknown.bin";

@@ -11,7 +11,7 @@ public record GenerateQuizCommand(
         @NotEmpty List<Long> materialIds,
         @NotBlank String questionType,
         @Min(1) @Max(5) Integer difficulty,
-        @Min(1) @Max(10) Integer count,
+        @Min(1) @Max(100) Integer count,
         Boolean interviewMode
 ) {
 }

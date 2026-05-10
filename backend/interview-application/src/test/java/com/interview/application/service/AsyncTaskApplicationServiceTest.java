@@ -42,7 +42,10 @@ class AsyncTaskApplicationServiceTest {
                 LocalDateTime.now(),
                 null,
                 LocalDateTime.now(),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                null,
+                null,
+                null
         );
     }
 

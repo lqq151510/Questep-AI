@@ -67,7 +67,10 @@ class MaterialApplicationServiceTest {
                 null,
                 null,
                 LocalDateTime.now(),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                null,
+                null,
+                null
         );
     }
 

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut, Menu, User, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { useDashboardStore } from "@/stores/useDashboardStore";
 
 const navLinks = [
   { href: "/home", label: "总览" },
@@ -19,6 +20,8 @@ const navLinks = [
 
 export default function AppChrome() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isLoggedIn, logout } = useDashboardStore();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Close mobile menu on route change
@@ -56,7 +59,30 @@ export default function AppChrome() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="chrome-actions">
+            {isLoggedIn && user ? (
+              <>
+                <span className="chrome-user-badge">
+                  <User size={14} />
+                  {user.username}
+                </span>
+                <button
+                  type="button"
+                  className="chrome-auth-link"
+                  onClick={() => { logout(); router.push("/login"); }}
+                >
+                  <LogOut size={14} />
+                  退出
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="chrome-auth-link">
+                登录 / 注册
+              </Link>
+            )}
+            <Link href="/home" className="chrome-auth-link subtle">
+              模型配置
+            </Link>
             <ThemeToggle />
             <button
               type="button"

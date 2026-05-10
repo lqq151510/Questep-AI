@@ -37,9 +37,14 @@ class AuthApplicationServiceTest {
     @Mock
     private LoginAttemptService loginAttemptService;
 
+    @Mock
+    private CaptchaService captchaService;
+
     @InjectMocks
     private AuthApplicationService authApplicationService;
 
+    private static final String CAPTCHA_ID = "captcha-id";
+    private static final String CAPTCHA_CODE = "1234";
     private User testUser;
     private String testPassword;
 
@@ -152,8 +157,9 @@ class AuthApplicationServiceTest {
     @Test
     @DisplayName("Test successful registration with new user")
     void testRegisterSuccess() {
-        RegisterCommand command = new RegisterCommand("newUser", "new@example.com", "Password123!");
+        RegisterCommand command = new RegisterCommand("newUser", "new@example.com", "Password123!", CAPTCHA_ID, CAPTCHA_CODE);
 
+        when(captchaService.validate(anyString(), anyString())).thenReturn(true);
         when(userRepository.findByUsername("newUser")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("Password123!")).thenReturn("encodedNewPassword");
@@ -177,8 +183,9 @@ class AuthApplicationServiceTest {
     @Test
     @DisplayName("Test registration fails when username already exists")
     void testRegisterUsernameExists() {
-        RegisterCommand command = new RegisterCommand("existingUser", "new@example.com", "password123");
+        RegisterCommand command = new RegisterCommand("existingUser", "new@example.com", "password123", "cid", "1234");
 
+        when(captchaService.validate(anyString(), anyString())).thenReturn(true);
         when(userRepository.findByUsername("existingUser")).thenReturn(Optional.of(testUser));
 
         IllegalArgumentException exception = assertThrows(
@@ -193,8 +200,9 @@ class AuthApplicationServiceTest {
     @Test
     @DisplayName("Test registration fails when email already exists")
     void testRegisterEmailExists() {
-        RegisterCommand command = new RegisterCommand("newUser", "existing@example.com", "password123");
+        RegisterCommand command = new RegisterCommand("newUser", "existing@example.com", "password123", "cid", "1234");
 
+        when(captchaService.validate(anyString(), anyString())).thenReturn(true);
         when(userRepository.findByUsername("newUser")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("existing@example.com")).thenReturn(Optional.of(testUser));
 

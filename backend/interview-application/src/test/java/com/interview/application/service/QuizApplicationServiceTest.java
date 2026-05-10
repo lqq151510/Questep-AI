@@ -102,6 +102,12 @@ class QuizApplicationServiceTest {
                         invocation.getArgument(6),
                         invocation.getArgument(7),
                         invocation.getArgument(8),
+                        "material://" + invocation.getArgument(0),
+                        "material-v1",
+                        now,
+                        new java.math.BigDecimal("0.820"),
+                        now.plusDays(30),
+                        TaskConstants.QUESTION_REVIEW_STATUS_APPROVED,
                         now,
                         now
                 ));
@@ -112,7 +118,7 @@ class QuizApplicationServiceTest {
     void shouldUseStructuredLlmOutputWhenSchemaIsValid() {
         GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 2, false);
         when(materialRepository.findByUserIdAndIds(1L, List.of(100L))).thenReturn(List.of(material));
-        when(llmGateway.chat(anyString())).thenReturn("""
+        when(llmGateway.chat(anyLong(), anyString())).thenReturn("""
                 {"summary":"覆盖并发容器与可见性边界","questions":[
                   {"stem":"解释volatile的可见性语义","referenceAnswer":"可见性+禁止重排序","analysis":"重点在happens-before"},
                   {"stem":"ConcurrentHashMap为什么比Hashtable吞吐更高","referenceAnswer":"分段/桶级并发+CAS","analysis":"锁粒度更细"}
@@ -123,6 +129,9 @@ class QuizApplicationServiceTest {
 
         assertEquals("覆盖并发容器与可见性边界", result.modelBrief());
         assertEquals(2, result.questions().size());
+        assertEquals(false, result.fallbackUsed());
+        assertEquals(0, result.invalidCount());
+        assertTrue(result.warnings().isEmpty());
 
         ArgumentCaptor<String> stemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> modelNameCaptor = ArgumentCaptor.forClass(String.class);
@@ -141,12 +150,16 @@ class QuizApplicationServiceTest {
     void shouldFallbackToDeterministicDraftsWhenSchemaIsInvalid() {
         GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 1, true);
         when(materialRepository.findByUserIdAndIds(1L, List.of(100L))).thenReturn(List.of(material));
-        when(llmGateway.chat(anyString())).thenReturn("this-is-not-json");
+        when(llmGateway.chat(anyLong(), anyString())).thenReturn("this-is-not-json");
 
         GeneratedQuizResult result = quizApplicationService.generate(1L, command);
 
         assertTrue(result.modelBrief().contains("fallback"));
         assertEquals(1, result.questions().size());
+        assertTrue(result.fallbackUsed());
+        assertEquals(1, result.invalidCount());
+        assertEquals(1, result.warnings().size());
+        assertTrue(result.warnings().get(0).contains("fallback templates"));
 
         ArgumentCaptor<String> stemCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> modelNameCaptor = ArgumentCaptor.forClass(String.class);
@@ -156,5 +169,44 @@ class QuizApplicationServiceTest {
         );
         assertTrue(stemCaptor.getValue().startsWith("1."));
         assertEquals("fallback-local", modelNameCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("should refresh pending question and archive stale one")
+    void shouldRefreshPendingQuestionAndArchiveStaleOne() {
+        LocalDateTime now = LocalDateTime.now();
+        Question pending = new Question(
+                88L,
+                100L,
+                1L,
+                "SHORT_ANSWER",
+                "old stem",
+                "old answer",
+                "old analysis",
+                3,
+                TaskConstants.SOURCE_TYPE_AI,
+                "llm-structured",
+                "material://100",
+                "material-v1",
+                now.minusDays(35),
+                new java.math.BigDecimal("0.82"),
+                now.minusDays(1),
+                TaskConstants.QUESTION_REVIEW_STATUS_PENDING,
+                now.minusDays(35),
+                now.minusDays(1)
+        );
+        when(questionRepository.findPendingRefreshCandidates(10, TaskConstants.QUESTION_REVIEW_STATUS_PENDING))
+                .thenReturn(List.of(pending));
+        when(materialRepository.findByUserIdAndIds(1L, List.of(100L))).thenReturn(List.of(material));
+        when(llmGateway.chat(anyLong(), anyString())).thenReturn("""
+                {"summary":"refresh","questions":[
+                  {"stem":"新题目","referenceAnswer":"新答案","analysis":"新解析"}
+                ]}
+                """);
+
+        int refreshed = quizApplicationService.refreshPendingQuestions(10);
+
+        assertEquals(1, refreshed);
+        verify(questionRepository, times(1)).archiveQuestion(eq(88L), org.mockito.ArgumentMatchers.any(LocalDateTime.class));
     }
 }

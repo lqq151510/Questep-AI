@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.*;
         }
 )
 class InfrastructureRepositoryIntegrationTest {
+    private static final String REVIEW_STATUS_APPROVED = "APPROVED";
+    private static final String REVIEW_STATUS_PENDING = "PENDING_REVIEW";
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
@@ -115,9 +118,12 @@ class InfrastructureRepositoryIntegrationTest {
         assertEquals("PROCESSING", processing.status());
         assertEquals(35, processing.progress());
 
-        AsyncTaskRecord failed = asyncTaskRecordRepository.updateError(created.id(), "parse failed");
+        AsyncTaskRecord failed = asyncTaskRecordRepository.updateError(created.id(), "parse failed", null, null, null);
         assertEquals("FAILED", failed.status());
         assertEquals("parse failed", failed.errorMsg());
+        assertNull(failed.errorCode());
+        assertNull(failed.stage());
+        assertNull(failed.retryable());
         assertTrue(asyncTaskRecordRepository.findByTaskNo("TASK-001").isPresent());
     }
 
@@ -149,9 +155,76 @@ class InfrastructureRepositoryIntegrationTest {
                 "test-model"
         );
 
-        List<Question> recent = questionRepository.findRecentByUser(user.id(), 10);
+        List<Question> recent = questionRepository.findRecentByUser(user.id(), 0, 10);
         assertEquals(2, recent.size());
         assertEquals(second.id(), recent.get(0).id());
         assertEquals(first.id(), recent.get(1).id());
+        assertEquals("material://" + second.materialId(), second.sourceUrl());
+        assertEquals("material-v1", second.sourceVersion());
+        assertEquals(REVIEW_STATUS_APPROVED, second.reviewStatus());
+        assertNotNull(second.expiresAt());
+    }
+
+    @Test
+    void questionRepositoryShouldMarkExpiredQuestionsForReview() {
+        User user = userRepository.save("eva", "eva@example.com", "pwd_hash");
+        Material material = materialRepository.save(user.id(), "redis-notes.md", "md", "/tmp/redis-notes.md");
+        Question saved = questionRepository.save(
+                material.id(),
+                user.id(),
+                "short",
+                "Redis 持久化策略区别？",
+                "AOF + RDB",
+                null,
+                3,
+                "manual",
+                "test-model"
+        );
+
+        int affected = questionRepository.markExpiredForReview(
+                LocalDateTime.now().plusDays(31),
+                REVIEW_STATUS_PENDING
+        );
+        assertTrue(affected >= 1);
+
+        Question updated = questionRepository.findById(saved.id()).orElseThrow();
+        assertEquals(REVIEW_STATUS_PENDING, updated.reviewStatus());
+    }
+
+    @Test
+    void questionRepositoryShouldExcludePendingAndArchivedFromRecentList() {
+        User user = userRepository.save("frank", "frank@example.com", "pwd_hash");
+        Material material = materialRepository.save(user.id(), "spring-cache.md", "md", "/tmp/spring-cache.md");
+
+        Question approved = questionRepository.save(
+                material.id(), user.id(), "short", "A", "A1", null, 3, "manual", "test-model"
+        );
+        Question pending = questionRepository.save(
+                material.id(), user.id(), "short", "B", "B1", null, 3, "manual", "test-model"
+        );
+        Question archived = questionRepository.save(
+                material.id(), user.id(), "short", "C", "C1", null, 3, "manual", "test-model"
+        );
+
+        jdbcTemplate.update("UPDATE questions SET review_status = 'PENDING_REVIEW' WHERE id = ?", pending.id());
+        questionRepository.archiveQuestion(archived.id(), LocalDateTime.now());
+
+        List<Question> recent = questionRepository.findRecentByUser(user.id(), 0, 20);
+        assertEquals(1, recent.size());
+        assertEquals(approved.id(), recent.getFirst().id());
+    }
+
+    @Test
+    void questionRepositoryShouldProvidePendingRefreshCandidates() {
+        User user = userRepository.save("grace", "grace@example.com", "pwd_hash");
+        Material material = materialRepository.save(user.id(), "mq.md", "md", "/tmp/mq.md");
+        Question saved = questionRepository.save(
+                material.id(), user.id(), "short", "MQ", "A", null, 3, "manual", "test-model"
+        );
+        jdbcTemplate.update("UPDATE questions SET review_status = 'PENDING_REVIEW' WHERE id = ?", saved.id());
+
+        List<Question> candidates = questionRepository.findPendingRefreshCandidates(10, REVIEW_STATUS_PENDING);
+        assertEquals(1, candidates.size());
+        assertEquals(saved.id(), candidates.getFirst().id());
     }
 }

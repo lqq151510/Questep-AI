@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ClipboardList,
@@ -9,79 +9,63 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { listQuestions, type BackendQuestion, toErrorMessage } from "@/lib/interview-api";
 
-const directions = ["全部", "Java", "前端", "Go", "算法", "数据库", "系统设计"];
-const difficulties = ["全部", "简单", "中等", "困难"];
-const types = ["全部", "单选题", "多选题", "判断题", "简答题"];
-
-const mockQuestions = [
-  {
-    id: 1,
-    question: "Java 中 HashMap 的底层数据结构是什么？",
-    direction: "Java",
-    difficulty: "中等",
-    type: "单选题",
-    bookmarked: false,
-  },
-  {
-    id: 2,
-    question: "Redis 缓存穿透、击穿、雪崩的区别和解决方案？",
-    direction: "数据库",
-    difficulty: "困难",
-    type: "简答题",
-    bookmarked: true,
-  },
-  {
-    id: 3,
-    question: "CSS 中 flex 布局的 justify-content 有哪些取值？",
-    direction: "前端",
-    difficulty: "简单",
-    type: "多选题",
-    bookmarked: false,
-  },
-  {
-    id: 4,
-    question: "Go 语言中的 goroutine 和线程有什么区别？",
-    direction: "Go",
-    difficulty: "中等",
-    type: "简答题",
-    bookmarked: false,
-  },
-  {
-    id: 5,
-    question: "快速排序的时间复杂度是多少？",
-    direction: "算法",
-    difficulty: "简单",
-    type: "单选题",
-    bookmarked: true,
-  },
-];
-
+const difficulties = ["全部", "1", "2", "3", "4", "5"];
+const difficultyLabels: Record<string, string> = {
+  "1": "基础",
+  "2": "简单",
+  "3": "中等",
+  "4": "困难",
+  "5": "专家",
+};
 const difficultyColor: Record<string, string> = {
-  简单: "var(--green)",
-  中等: "var(--yellow)",
-  困难: "var(--red)",
+  "1": "var(--green)",
+  "2": "var(--green)",
+  "3": "var(--yellow)",
+  "4": "var(--red)",
+  "5": "var(--red)",
 };
 
 export default function QuestionBankPage() {
-  const [direction, setDirection] = useState("全部");
-  const [difficulty, setDifficulty] = useState("全部");
-  const [type, setType] = useState("全部");
+  const [questions, setQuestions] = useState<BackendQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [questions, setQuestions] = useState(mockQuestions);
+  const [difficulty, setDifficulty] = useState("全部");
+  const [bookmarked, setBookmarked] = useState<Set<number>>(new Set());
+
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(20);
+
+  const fetchQuestions = () => {
+    setLoading(true);
+    setError("");
+    listQuestions(page, pageSize)
+      .then(setQuestions)
+      .catch((e) => setError(toErrorMessage(e, "获取题库失败")))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchQuestions(); }, [page]);
 
   const filtered = questions.filter((q) => {
-    const matchDir = direction === "全部" || q.direction === direction;
-    const matchDiff = difficulty === "全部" || q.difficulty === difficulty;
-    const matchType = type === "全部" || q.type === type;
-    const matchSearch = q.question.toLowerCase().includes(search.toLowerCase());
-    return matchDir && matchDiff && matchType && matchSearch;
+    const matchDiff = difficulty === "全部" || String(q.difficulty ?? "") === difficulty;
+    const matchSearch = q.stemText?.toLowerCase().includes(search.toLowerCase());
+    return matchDiff && matchSearch;
   });
 
   const toggleBookmark = (id: number) => {
-    setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, bookmarked: !q.bookmarked } : q))
-    );
+    setBookmarked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   return (
@@ -95,23 +79,7 @@ export default function QuestionBankPage() {
       {/* Filters */}
       <div className="panel">
         <div className="field-group">
-          <p className="field-label">技术方向</p>
-          <div className="chip-row">
-            {directions.map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`chip ${direction === d ? "active" : ""}`}
-                onClick={() => setDirection(d)}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="field-group">
-          <p className="field-label">难度</p>
+          <p className="field-label">难度筛选</p>
           <div className="chip-row">
             {difficulties.map((d) => (
               <button
@@ -120,23 +88,7 @@ export default function QuestionBankPage() {
                 className={`chip ${difficulty === d ? "active" : ""}`}
                 onClick={() => setDifficulty(d)}
               >
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="field-group">
-          <p className="field-label">题型</p>
-          <div className="chip-row">
-            {types.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`chip ${type === t ? "active" : ""}`}
-                onClick={() => setType(t)}
-              >
-                {t}
+                {d === "全部" ? "全部" : `${d} · ${difficultyLabels[d]}`}
               </button>
             ))}
           </div>
@@ -163,52 +115,96 @@ export default function QuestionBankPage() {
       </div>
 
       {/* Questions List */}
-      {filtered.length === 0 ? (
+      {loading && (
+        <div className="list-grid">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="list-card">
+              <Skeleton className="h-4 w-1/4 mb-3" />
+              <Skeleton className="h-5 w-3/4" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && error && (
+        <EmptyState
+          icon={ClipboardList}
+          title="加载失败"
+          description={error}
+          action={{ label: "重试", onClick: fetchQuestions }}
+        />
+      )}
+
+      {!loading && !error && filtered.length === 0 && (
         <EmptyState
           icon={ClipboardList}
           title="暂无题目"
-          description="尝试调整筛选条件或搜索关键词"
+          description="尝试调整筛选条件或搜索关键词，或先生成题目"
         />
-      ) : (
+      )}
+
+      {!loading && !error && filtered.length > 0 && (
         <div className="list-grid">
-          {filtered.map((q, i) => (
-            <motion.div
-              key={q.id}
-              className="list-card"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, duration: 0.3 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="badge"
-                    style={{
-                      color: difficultyColor[q.difficulty],
-                      background: `${difficultyColor[q.difficulty]}15`,
-                    }}
+          {filtered.map((q, i) => {
+            const diff = String(q.difficulty ?? "");
+            const color = difficultyColor[diff] || "var(--muted)";
+            return (
+              <motion.div
+                key={q.id}
+                className="list-card"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.3 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="badge" style={{ color, background: `${color}15` }}>
+                      {difficultyLabels[diff] || `L${diff}`}
+                    </span>
+                    <span className="badge" style={{ color: "var(--blue)", background: "var(--blue-soft)" }}>
+                      {q.questionType || q.sourceType || "通用"}
+                    </span>
+                    {q.modelName && (
+                      <span className="text-xs text-[var(--muted)]">{q.modelName}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost icon-btn"
+                    onClick={() => toggleBookmark(q.id)}
                   >
-                    {q.difficulty}
-                  </span>
-                  <span className="badge" style={{ color: "var(--blue)", background: "var(--blue-soft)" }}>
-                    {q.type}
-                  </span>
-                  <span className="text-xs text-[var(--muted)]">{q.direction}</span>
+                    <Bookmark
+                      size={14}
+                      className={bookmarked.has(q.id) ? "fill-[var(--blue)] text-[var(--blue)]" : ""}
+                    />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost icon-btn"
-                  onClick={() => toggleBookmark(q.id)}
-                >
-                  <Bookmark
-                    size={14}
-                    className={q.bookmarked ? "fill-[var(--blue)] text-[var(--blue)]" : ""}
-                  />
-                </button>
-              </div>
-              <h3>{q.question}</h3>
-            </motion.div>
-          ))}
+                <h3>{q.stemText}</h3>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="pagination-row">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={page === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            上一页
+          </button>
+          <span className="text-sm text-[var(--muted)]">第 {page + 1} 页</span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={filtered.length < pageSize}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            下一页
+          </button>
         </div>
       )}
     </div>

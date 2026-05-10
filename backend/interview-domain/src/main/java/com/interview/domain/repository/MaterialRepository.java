@@ -18,4 +18,6 @@ public interface MaterialRepository {
     void markParseSuccess(Long id, String contentHash, String analysisText);
 
     void markParseFailure(Long id, String errorMsg);
+
+    void markParsePending(Long id);
 }

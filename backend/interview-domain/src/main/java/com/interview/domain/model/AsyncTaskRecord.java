@@ -14,6 +14,9 @@ public record AsyncTaskRecord(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String errorCode,
+        String stage,
+        Boolean retryable
 ) {
 }

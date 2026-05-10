@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -54,14 +55,14 @@ class MaterialParseTaskProcessorTest {
         AsyncTaskRecord task = buildTask(10L, 100L);
         Material material = buildMaterial(100L, materialPath.toString());
         when(materialRepository.findById(100L)).thenReturn(Optional.of(material));
-        when(llmGateway.chat(anyString())).thenReturn("summary");
+        when(llmGateway.chat(anyLong(), anyString())).thenReturn("summary");
 
         materialParseTaskProcessor.processTask(task);
 
         verify(materialRepository).markParseSuccess(eq(100L), anyString(), eq("summary"));
         verify(materialRepository, never()).markParseFailure(anyLong(), anyString());
         verify(asyncTaskRecordRepository).updateStatus(10L, TaskConstants.STATUS_SUCCESS, 100);
-        verify(asyncTaskRecordRepository, never()).updateError(eq(10L), anyString());
+        verify(asyncTaskRecordRepository, never()).updateError(eq(10L), anyString(), anyString(), anyString(), anyBoolean());
     }
 
     @Test
@@ -73,13 +74,13 @@ class MaterialParseTaskProcessorTest {
         AsyncTaskRecord task = buildTask(11L, 101L);
         Material material = buildMaterial(101L, materialPath.toString());
         when(materialRepository.findById(101L)).thenReturn(Optional.of(material));
-        when(llmGateway.chat(anyString())).thenThrow(new RuntimeException("OpenAI gateway timeout"));
+        when(llmGateway.chat(anyLong(), anyString())).thenThrow(new RuntimeException("OpenAI gateway timeout"));
 
         materialParseTaskProcessor.processTask(task);
 
         verify(materialRepository).markParseFailure(eq(101L), contains("OpenAI gateway timeout"));
         verify(materialRepository, never()).markParseSuccess(eq(101L), anyString(), anyString());
-        verify(asyncTaskRecordRepository).updateError(eq(11L), contains("OpenAI gateway timeout"));
+        verify(asyncTaskRecordRepository).updateError(eq(11L), contains("OpenAI gateway timeout"), eq("INTERNAL_ERROR"), eq("PARSE"), eq(true));
         verify(asyncTaskRecordRepository, never()).updateStatus(11L, TaskConstants.STATUS_SUCCESS, 100);
     }
 
@@ -97,7 +98,10 @@ class MaterialParseTaskProcessorTest {
                 null,
                 null,
                 now,
-                now
+                now,
+                null,
+                null,
+                null
         );
     }
 

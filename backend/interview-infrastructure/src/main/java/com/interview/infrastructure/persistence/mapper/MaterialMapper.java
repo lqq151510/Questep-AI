@@ -28,6 +28,8 @@ public interface MaterialMapper {
 
     int updateParseFailure(@Param("id") Long id, @Param("parseErrorMsg") String parseErrorMsg);
 
+    int updateParsePending(@Param("id") Long id);
+
     int deleteById(Long id);
 
     int deleteByIds(@Param("ids") List<Long> ids);

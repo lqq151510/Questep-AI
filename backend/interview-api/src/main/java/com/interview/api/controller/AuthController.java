@@ -1,11 +1,13 @@
 package com.interview.api.controller;
 
+import com.interview.application.dto.CaptchaResponse;
 import com.interview.application.dto.LoginCommand;
 import com.interview.application.dto.LoginResult;
 import com.interview.application.dto.LogoutCommand;
 import com.interview.application.dto.RefreshTokenCommand;
 import com.interview.application.dto.RegisterCommand;
 import com.interview.application.service.AuthApplicationService;
+import com.interview.application.service.CaptchaService;
 import com.interview.application.service.TokenBlacklistService;
 import com.interview.application.service.TokenService;
 import com.interview.common.api.ApiResponse;
@@ -25,15 +27,18 @@ public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthApplicationService authApplicationService;
+    private final CaptchaService captchaService;
     private final TokenBlacklistService tokenBlacklistService;
     private final TokenService tokenService;
 
     public AuthController(
             AuthApplicationService authApplicationService,
+            CaptchaService captchaService,
             TokenBlacklistService tokenBlacklistService,
             TokenService tokenService
     ) {
         this.authApplicationService = authApplicationService;
+        this.captchaService = captchaService;
         this.tokenBlacklistService = tokenBlacklistService;
         this.tokenService = tokenService;
     }
@@ -48,6 +53,12 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<LoginResult> register(@Valid @RequestBody RegisterCommand command) {
         return ApiResponse.ok(authApplicationService.register(command));
+    }
+
+    @Operation(summary = "Generate captcha code")
+    @GetMapping("/captcha")
+    public ApiResponse<CaptchaResponse> captcha() {
+        return ApiResponse.ok(captchaService.generate());
     }
 
     @Operation(summary = "Refresh JWT tokens")

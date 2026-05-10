@@ -2,6 +2,7 @@ package com.interview.application.service;
 
 import com.interview.application.dto.UploadMaterialResult;
 import com.interview.common.constant.TaskConstants;
+import com.interview.common.exception.ResourceNotFoundException;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
@@ -26,6 +27,20 @@ public class MaterialApplicationService {
     @Transactional
     public UploadMaterialResult uploadAndCreateParseTask(Long userId, String name, String fileType, String storagePath) {
         Material material = materialRepository.save(userId, name, fileType, storagePath);
+        AsyncTaskRecord task = asyncTaskRecordRepository.create(
+                TaskConstants.TASK_NO_PREFIX + UUID.randomUUID().toString().replace("-", ""),
+                TaskConstants.TYPE_MATERIAL_PARSE,
+                material.id(),
+                userId
+        );
+        return new UploadMaterialResult(material, task);
+    }
+
+    @Transactional
+    public UploadMaterialResult retryParseTask(Long userId, Long materialId) {
+        Material material = materialRepository.findById(materialId)
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found: " + materialId));
+        materialRepository.markParsePending(materialId);
         AsyncTaskRecord task = asyncTaskRecordRepository.create(
                 TaskConstants.TASK_NO_PREFIX + UUID.randomUUID().toString().replace("-", ""),
                 TaskConstants.TYPE_MATERIAL_PARSE,

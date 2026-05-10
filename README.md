@@ -9,7 +9,7 @@ JWT_SECRET=<your-secret-at-least-32-chars> mvn -pl interview-api spring-boot:run
 ```
 
 > **⚠️ JWT_SECRET 是必填环境变量**，长度至少 32 字节，否则应用无法启动。生产环境请使用强随机密钥，切勿使用示例值。
-> 本地默认使用 `LLM_PROVIDER=noop`，可以无模型密钥启动；接入真实 OpenAI 兼容模型时再显式设置 `LLM_PROVIDER=openai`、`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`。
+> 默认 LLM 提供商为 `anthropic`。若本机存在 `~/.claude/settings.json`，系统会自动读取其中 `ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL / ANTHROPIC_MODEL` 作为默认模型配置。也可手动覆盖：`LLM_PROVIDER`、`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`。
 
 ## Local infrastructure
 
@@ -43,6 +43,23 @@ curl -X POST http://127.0.0.1:8080/api/v1/quizzes/generate \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"materialIds":[1],"questionType":"short","difficulty":3,"count":3,"interviewMode":true}'
+
+# 查询当前用户 LLM 设置（支持多厂商/模型/自定义 URL）
+curl -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8080/api/v1/llm/settings
+
+# 更新当前用户 LLM 设置
+curl -X PUT http://127.0.0.1:8080/api/v1/llm/settings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"providerName":"openai","modelName":"gpt-4o-mini","baseUrl":"https://api.openai.com/v1","apiKey":"<your-key>","enabled":true}'
+
+# OpenAI 兼容格式（任意兼容 /chat/completions 的厂商）
+curl -X PUT http://127.0.0.1:8080/api/v1/llm/settings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"providerName":"openai-compatible","modelName":"deepseek-v4-flash","baseUrl":"https://api.deepseek.com/v1","apiKey":"<your-key>","enabled":true}'
+# providerName 也支持: openai_format / openai-format / compatible
 ```
 
 Frontend local token:

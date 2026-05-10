@@ -47,6 +47,22 @@ export type BackendQuestion = {
   updatedAt?: string;
 };
 
+export type LoginPayload = {
+  username: string;
+  password: string;
+};
+
+export type RegisterPayload = LoginPayload & {
+  email: string;
+  captchaId: string;
+  captchaCode: string;
+};
+
+export type CaptchaResult = {
+  captchaId: string;
+  captchaCode: string;
+};
+
 export type BackendAsyncTask = {
   id?: number;
   taskNo?: string;
@@ -79,6 +95,9 @@ export type GenerateQuizResult = {
   traceId?: string;
   modelBrief?: string;
   questions?: BackendQuestion[];
+  fallbackUsed?: boolean;
+  invalidCount?: number;
+  warnings?: string[];
 };
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -191,14 +210,47 @@ async function unwrap<T>(response: Response, fallbackMessage: string): Promise<T
     return payload.data;
   }
 
-  const rawMessage = payload?.message?.trim();
-  if (rawMessage) {
-    throw new Error(rawMessage);
+  if (response.status === 408) {
+    throw new Error("请求超时，请检查网络连接后重试");
+  }
+  if (response.status === 429) {
+    throw new Error("请求过于频繁，请稍后重试");
+  }
+  if (response.status >= 500) {
+    throw new Error("服务暂时不可用，请稍后重试");
   }
   if (response.status === 401 || response.status === 403) {
     throw new Error("未登录或登录已过期，请先登录后再试。");
   }
+
+  const rawMessage = payload?.message?.trim();
+  if (rawMessage) {
+    throw new Error(rawMessage);
+  }
   throw new Error(fallbackMessage);
+}
+
+export async function login(payload: LoginPayload): Promise<AuthTokenPayload> {
+  const response = await fetchWithRetry("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return unwrap<AuthTokenPayload>(response, "登录失败");
+}
+
+export async function register(payload: RegisterPayload): Promise<AuthTokenPayload> {
+  const response = await fetchWithRetry("/api/v1/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return unwrap<AuthTokenPayload>(response, "注册失败");
+}
+
+export async function fetchCaptcha(): Promise<CaptchaResult> {
+  const response = await fetchWithRetry("/api/v1/auth/captcha", { cache: "no-store" });
+  return unwrap<CaptchaResult>(response, "获取验证码失败");
 }
 
 export async function listMaterials(): Promise<BackendMaterial[]> {
@@ -217,8 +269,11 @@ export async function uploadMaterial(file: File): Promise<UploadMaterialResult> 
   return unwrap<UploadMaterialResult>(response, "上传资料失败");
 }
 
-export async function listQuestions(limit = 30): Promise<BackendQuestion[]> {
-  const response = await fetchWithAuth(`/api/v1/quizzes/questions?limit=${encodeURIComponent(String(limit))}`, { cache: "no-store" });
+export async function listQuestions(page = 0, pageSize = 20): Promise<BackendQuestion[]> {
+  const response = await fetchWithAuth(
+    `/api/v1/quizzes/questions?page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`,
+    { cache: "no-store" }
+  );
   return unwrap<BackendQuestion[]>(response, "获取题库失败");
 }
 
@@ -234,6 +289,101 @@ export async function generateQuiz(payload: GenerateQuizPayload): Promise<Genera
 export async function getAsyncTask(taskNo: string): Promise<BackendAsyncTask> {
   const response = await fetchWithAuth(`/api/v1/async-tasks/${encodeURIComponent(taskNo)}`, { cache: "no-store" });
   return unwrap<BackendAsyncTask>(response, "获取任务状态失败");
+}
+
+export type WrongBookItem = {
+  id: number;
+  questionId: number;
+  question: string;
+  questionType?: string;
+  referenceAnswer?: string | null;
+  analysisText?: string | null;
+  difficulty?: number | null;
+  masteryStatus: string;
+  wrongCount: number;
+  reviewCount: number;
+  notes?: string | null;
+};
+
+export type AddWrongBookPayload = {
+  questionId: number;
+};
+
+export type UpdateMasteryPayload = {
+  masteryStatus: string;
+};
+
+export async function listWrongBooks(masteryStatus?: string): Promise<WrongBookItem[]> {
+  const url = masteryStatus
+    ? `/api/v1/wrong-books?masteryStatus=${encodeURIComponent(masteryStatus)}`
+    : "/api/v1/wrong-books";
+  const response = await fetchWithAuth(url, { cache: "no-store" });
+  return unwrap<WrongBookItem[]>(response, "获取错题本失败");
+}
+
+export async function addWrongBook(payload: AddWrongBookPayload): Promise<WrongBookItem> {
+  const response = await fetchWithAuth("/api/v1/wrong-books", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return unwrap<WrongBookItem>(response, "添加错题失败");
+}
+
+export async function updateMasteryStatus(id: number, payload: UpdateMasteryPayload): Promise<WrongBookItem> {
+  const response = await fetchWithAuth(`/api/v1/wrong-books/${id}/mastery`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return unwrap<WrongBookItem>(response, "更新掌握状态失败");
+}
+
+export async function retryParseMaterial(materialId: number): Promise<UploadMaterialResult> {
+  const response = await fetchWithAuth(`/api/v1/materials/${materialId}/retry-parse`, {
+    method: "POST"
+  });
+  return unwrap<UploadMaterialResult>(response, "重试解析失败");
+}
+
+export async function deleteWrongBook(id: number): Promise<void> {
+  const response = await fetchWithAuth(`/api/v1/wrong-books/${id}`, {
+    method: "DELETE"
+  });
+  return unwrap<void>(response, "删除错题失败");
+}
+
+export type InterviewSession = {
+  id: number;
+  userId: number;
+  position: string;
+  difficulty: number;
+  status: string;
+  contextSnapshot?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function createOrGetSession(position: string, difficulty: number): Promise<InterviewSession> {
+  const response = await fetchWithAuth("/api/v1/interviews/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ position, difficulty })
+  });
+  return unwrap<InterviewSession>(response, "创建会话失败");
+}
+
+export async function getActiveSession(): Promise<InterviewSession | null> {
+  const response = await fetchWithAuth("/api/v1/interviews/sessions/active", { cache: "no-store" });
+  if (response.status === 404) return null;
+  return unwrap<InterviewSession>(response, "获取会话失败");
+}
+
+export async function resumeSession(sessionId: number): Promise<InterviewSession> {
+  const response = await fetchWithAuth(`/api/v1/interviews/${sessionId}/resume`, {
+    method: "POST"
+  });
+  return unwrap<InterviewSession>(response, "恢复会话失败");
 }
 
 export function toErrorMessage(error: unknown, fallback = "请求失败，请稍后重试"): string {

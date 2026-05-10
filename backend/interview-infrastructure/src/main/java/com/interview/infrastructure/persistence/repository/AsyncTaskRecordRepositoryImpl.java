@@ -50,8 +50,8 @@ public class AsyncTaskRecordRepositoryImpl implements AsyncTaskRecordRepository 
     }
 
     @Override
-    public AsyncTaskRecord updateError(Long id, String errorMsg) {
-        mapper.updateError(id, errorMsg);
+    public AsyncTaskRecord updateError(Long id, String errorMsg, String errorCode, String stage, Boolean retryable) {
+        mapper.updateError(id, errorMsg, errorCode, stage, retryable);
         return mapper.selectById(id);
     }
 }

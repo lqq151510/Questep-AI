@@ -32,6 +32,7 @@ public class QuizApplicationService {
     private static final int MAX_BRIEF_LENGTH = 500;
     private static final String MODEL_NAME_STRUCTURED = "llm-structured";
     private static final String MODEL_NAME_FALLBACK = "fallback-local";
+    private static final int DEFAULT_REFRESH_BATCH = 20;
 
     private final MaterialRepository materialRepository;
     private final QuestionRepository questionRepository;
@@ -75,21 +76,66 @@ public class QuizApplicationService {
         boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
 
         String prompt = promptBuilder.build(materials, questionType, difficulty, count, interviewMode);
-        String rawLlmResponse = llmGateway.chat(prompt);
+        String rawLlmResponse = llmGateway.chat(userId, prompt);
         StructuredQuizPayload payload = payloadParser.parse(rawLlmResponse, count);
         boolean fallbackUsed = payload == null || payload.questions().size() < count;
+        int invalidCount = payload == null ? count : count - payload.questions().size();
+
+        List<String> warnings = new ArrayList<>();
+        if (payload == null) {
+            warnings.add("LLM response schema invalid, all questions use deterministic fallback templates.");
+        } else if (invalidCount > 0) {
+            warnings.add("部分题目无法从 LLM 响应中解析，已用模板题补充 (" + invalidCount + "/" + count + ")");
+        }
 
         List<Question> savedQuestions = txTemplate.execute(status ->
                 persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, payload));
         return new GeneratedQuizResult(
                 "quiz-" + shortUuid(),
                 buildModelBrief(payload, fallbackUsed),
-                savedQuestions
+                savedQuestions,
+                fallbackUsed,
+                invalidCount,
+                warnings
         );
     }
 
-    public List<Question> recent(Long userId, int limit) {
-        return questionRepository.findRecentByUser(userId, Math.max(1, Math.min(limit, 50)));
+    public List<Question> recent(Long userId, int page, int pageSize) {
+        int offset = page * pageSize;
+        return questionRepository.findRecentByUser(userId, offset, pageSize);
+    }
+
+    public int refreshPendingQuestions(int limit) {
+        int batchSize = limit <= 0 ? DEFAULT_REFRESH_BATCH : Math.min(limit, DEFAULT_REFRESH_BATCH);
+        List<Question> candidates = questionRepository.findPendingRefreshCandidates(
+                batchSize,
+                TaskConstants.QUESTION_REVIEW_STATUS_PENDING
+        );
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+
+        int refreshed = 0;
+        for (Question candidate : candidates) {
+            try {
+                if (candidate.creatorUserId() == null || candidate.materialId() == null) {
+                    continue;
+                }
+                GenerateQuizCommand command = new GenerateQuizCommand(
+                        List.of(candidate.materialId()),
+                        toCommandQuestionType(candidate.questionType()),
+                        candidate.difficulty(),
+                        1,
+                        "INTERVIEW".equalsIgnoreCase(candidate.questionType())
+                );
+                generate(candidate.creatorUserId(), command);
+                questionRepository.archiveQuestion(candidate.id(), java.time.LocalDateTime.now());
+                refreshed++;
+            } catch (Exception ex) {
+                logger.warn("Failed to refresh pending question id={}: {}", candidate.id(), ex.getMessage());
+            }
+        }
+        return refreshed;
     }
 
     private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
@@ -105,7 +151,10 @@ public class QuizApplicationService {
         return new GeneratedQuizResult(
                 "quiz-fallback-" + shortUuid(),
                 "LLM unavailable, circuit breaker activated. Generated questions using deterministic fallback templates.",
-                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, null)
+                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, null),
+                true,
+                count,
+                List.of("LLM Gateway 熔断触发，全部使用确定性模板题生成。")
         );
     }
 
@@ -187,5 +236,18 @@ public class QuizApplicationService {
 
     private String shortUuid() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String toCommandQuestionType(String storedType) {
+        if (storedType == null) {
+            return "short";
+        }
+        return switch (storedType) {
+            case "SINGLE_CHOICE" -> "choice";
+            case "SHORT_ANSWER" -> "short";
+            case "CODING" -> "coding";
+            case "INTERVIEW" -> "interview";
+            default -> "short";
+        };
     }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -8,52 +8,111 @@ import {
   CheckCircle,
   TrendingUp,
   BookOpen,
+  Loader2,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  listWrongBooks,
+  updateMasteryStatus,
+  type WrongBookItem,
+} from "@/lib/interview-api";
+import { toErrorMessage } from "@/lib/interview-api";
 
-const mockWrongAnswers = [
-  {
-    id: 1,
-    question: "Java 中 volatile 关键字的作用是什么？",
-    direction: "Java",
-    yourAnswer: "保证原子性",
-    correctAnswer: "保证可见性和禁止指令重排序",
-    mastered: false,
-    reviewCount: 2,
-  },
-  {
-    id: 2,
-    question: "Redis 持久化机制有哪些？",
-    direction: "数据库",
-    yourAnswer: "RDB",
-    correctAnswer: "RDB 和 AOF",
-    mastered: true,
-    reviewCount: 5,
-  },
-  {
-    id: 3,
-    question: "TCP 三次握手的过程是什么？",
-    direction: "网络",
-    yourAnswer: "SYN -> ACK -> SYN+ACK",
-    correctAnswer: "SYN -> SYN+ACK -> ACK",
-    mastered: false,
-    reviewCount: 1,
-  },
-];
+type FrontendWrongAnswer = {
+  id: number;
+  question: string;
+  direction: string;
+  yourAnswer: string;
+  correctAnswer: string;
+  mastered: boolean;
+  reviewCount: number;
+  wrongBookId: number;
+  questionId: number;
+  analysisText?: string | null;
+};
+
+function mapBackendToFrontend(item: WrongBookItem): FrontendWrongAnswer {
+  const typeMap: Record<string, string> = {
+    SINGLE_CHOICE: "单选",
+    MULTIPLE_CHOICE: "多选",
+    SHORT_ANSWER: "简答",
+    CODING: "编程",
+    INTERVIEW: "面试",
+    choice: "单选",
+    short: "简答",
+    code: "编程",
+    interview: "面试",
+  };
+  return {
+    id: item.id,
+    question: item.question || "无题目内容",
+    direction: typeMap[item.questionType || ""] || item.questionType || "其他",
+    yourAnswer: "未记录",
+    correctAnswer: item.referenceAnswer || "暂无参考答案",
+    mastered: item.masteryStatus === "MASTERED",
+    reviewCount: item.reviewCount || item.wrongCount || 0,
+    wrongBookId: item.id,
+    questionId: item.questionId,
+    analysisText: item.analysisText,
+  };
+}
 
 export default function WrongAnswersPage() {
-  const [wrongAnswers, setWrongAnswers] = useState(mockWrongAnswers);
+  const [wrongAnswers, setWrongAnswers] = useState<FrontendWrongAnswer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleMastered = (id: number) => {
+  const loadWrongBooks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const items = await listWrongBooks();
+      setWrongAnswers(items.map(mapBackendToFrontend));
+    } catch (err) {
+      setError(toErrorMessage(err, "加载错题本失败"));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWrongBooks();
+  }, [loadWrongBooks]);
+
+  const toggleMastered = async (id: number) => {
+    const item = wrongAnswers.find((w) => w.id === id);
+    if (!item) return;
+
+    const newStatus = item.mastered ? "UNMASTERED" : "MASTERED";
+    const originalAnswers = [...wrongAnswers];
+
     setWrongAnswers((prev) =>
       prev.map((w) => (w.id === id ? { ...w, mastered: !w.mastered } : w))
     );
+
+    try {
+      await updateMasteryStatus(item.wrongBookId, { masteryStatus: newStatus });
+    } catch (err) {
+      setWrongAnswers(originalAnswers);
+      setError(toErrorMessage(err, "更新状态失败"));
+    }
   };
 
   const unmastered = wrongAnswers.filter((w) => !w.mastered);
   const mastered = wrongAnswers.filter((w) => w.mastered);
-  const masteryRate = Math.round((mastered.length / wrongAnswers.length) * 100) || 0;
+  const masteryRate =
+    wrongAnswers.length > 0
+      ? Math.round((mastered.length / wrongAnswers.length) * 100)
+      : 0;
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--blue)]" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -62,6 +121,19 @@ export default function WrongAnswersPage() {
         title="错题复习"
         description="自动记录错题，智能分析薄弱知识点，科学安排复习计划。"
       />
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+          <button
+            type="button"
+            className="ml-2 underline"
+            onClick={() => void loadWrongBooks()}
+          >
+            重试
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="metric-grid compact">
@@ -101,7 +173,9 @@ export default function WrongAnswersPage() {
             <TrendingUp size={16} className="text-[var(--blue)]" />
             <span className="text-sm font-medium">掌握进度</span>
           </div>
-          <span className="text-sm font-bold text-[var(--blue)]">{masteryRate}%</span>
+          <span className="text-sm font-bold text-[var(--blue)]">
+            {masteryRate}%
+          </span>
         </div>
         <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[var(--border)]">
           <motion.div
@@ -157,7 +231,7 @@ export default function WrongAnswersPage() {
                   <button
                     type="button"
                     className="btn btn-accent"
-                    onClick={() => toggleMastered(w.id)}
+                    onClick={() => void toggleMastered(w.id)}
                   >
                     <CheckCircle size={14} />
                     标记掌握
@@ -202,7 +276,7 @@ export default function WrongAnswersPage() {
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    onClick={() => toggleMastered(w.id)}
+                    onClick={() => void toggleMastered(w.id)}
                   >
                     <RotateCcw size={14} />
                     重新复习

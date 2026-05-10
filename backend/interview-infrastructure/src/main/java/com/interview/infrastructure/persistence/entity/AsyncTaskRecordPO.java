@@ -15,6 +15,9 @@ public class AsyncTaskRecordPO {
     private LocalDateTime finishedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String errorCode;
+    private String stage;
+    private Boolean retryable;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -40,4 +43,10 @@ public class AsyncTaskRecordPO {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getErrorCode() { return errorCode; }
+    public void setErrorCode(String errorCode) { this.errorCode = errorCode; }
+    public String getStage() { return stage; }
+    public void setStage(String stage) { this.stage = stage; }
+    public Boolean getRetryable() { return retryable; }
+    public void setRetryable(Boolean retryable) { this.retryable = retryable; }
 }

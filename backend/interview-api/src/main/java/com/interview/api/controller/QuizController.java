@@ -32,7 +32,15 @@ public class QuizController {
     }
 
     @GetMapping("/questions")
-    public ApiResponse<List<Question>> recent(@RequestParam(defaultValue = "10") int limit) {
-        return ApiResponse.ok(quizApplicationService.recent(CurrentUser.id(), limit));
+    public ApiResponse<List<Question>> recent(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be >= 0");
+        }
+        if (pageSize < 1 || pageSize > 50) {
+            throw new IllegalArgumentException("pageSize must be between 1 and 50");
+        }
+        return ApiResponse.ok(quizApplicationService.recent(CurrentUser.id(), page, pageSize));
     }
 }

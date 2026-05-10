@@ -15,4 +15,7 @@ public final class TaskConstants {
     public static final String GATEWAY_NOOP = "noop-gateway";
 
     public static final String ROLE_USER = "ROLE_USER";
+
+    public static final String QUESTION_REVIEW_STATUS_APPROVED = "APPROVED";
+    public static final String QUESTION_REVIEW_STATUS_PENDING = "PENDING_REVIEW";
 }

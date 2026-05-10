@@ -3,12 +3,21 @@ import { create } from "zustand";
 import { initialDraftQuestions, seedMaterials, seedTasks } from "@/lib/dashboard-data";
 import { createLocalMaterial, mapRemoteMaterial, modeText, nowLabel } from "@/lib/dashboard-format";
 import {
+  clearAuthTokens,
+  fetchCaptcha as requestCaptcha,
   generateQuiz as requestGenerateQuiz,
   getAsyncTask,
   listMaterials as requestListMaterials,
+  login as requestLogin,
+  register as requestRegister,
+  saveAuthTokens,
   toErrorMessage,
+  retryParseMaterial as requestRetryParse,
   uploadMaterial as requestUploadMaterial,
-  type BackendAsyncTask
+  type BackendAsyncTask,
+  type CaptchaResult,
+  type LoginPayload,
+  type RegisterPayload
 } from "@/lib/interview-api";
 import type {
   MaterialFilter,
@@ -20,43 +29,114 @@ import type {
 } from "@/types/dashboard";
 
 type DashboardState = {
+  // auth
+  user: { username: string } | null;
+  isLoggedIn: boolean;
+  authState: RemoteState;
+  login: (payload: LoginPayload) => Promise<string | null>;
+  register: (payload: RegisterPayload) => Promise<string | null>;
+  fetchCaptcha: () => Promise<CaptchaResult | null>;
+  logout: () => void;
+
+  // quiz
   materials: MaterialItem[];
   tasks: TaskItem[];
   selectedMaterialIds: string[];
   materialFilter: MaterialFilter;
   questionMode: QuestionMode;
   difficulty: number;
+  count: number;
   interviewMode: boolean;
   apiState: RemoteState;
   quizState: RemoteState;
+  quizWarnings: string[];
   draftQuestions: string[];
   setMaterialFilter: (filter: MaterialFilter) => void;
   setQuestionMode: (mode: QuestionMode) => void;
   setDifficulty: (difficulty: number) => void;
+  setCount: (count: number) => void;
   setInterviewMode: (enabled: boolean) => void;
   tickProgress: () => void;
   toggleMaterial: (id: string) => void;
   uploadMaterial: (file: File) => Promise<void>;
   refreshMaterials: () => Promise<void>;
   generateQuestions: () => Promise<void>;
+  retryParseMaterial: (materialId: number) => Promise<void>;
 };
 
 type DashboardSetter = (updater: (state: DashboardState) => Partial<DashboardState>) => void;
 
+function readStoredUser(): { username: string } | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("interview_token");
+  const username = localStorage.getItem("interview_username");
+  if (token && username) return { username };
+  return null;
+}
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
+  // auth
+  user: readStoredUser(),
+  isLoggedIn: readStoredUser() !== null,
+  authState: readStoredUser() !== null ? "online" : "idle",
+  login: async (payload) => {
+    set({ authState: "syncing" });
+    try {
+      const result = await requestLogin(payload);
+      saveAuthTokens(result);
+      const username = payload.username;
+      set({ user: { username }, isLoggedIn: true, authState: "online" });
+      localStorage.setItem("interview_username", username);
+      return null;
+    } catch (error) {
+      set({ authState: "offline" });
+      return toErrorMessage(error, "登录失败");
+    }
+  },
+  register: async (payload) => {
+    set({ authState: "syncing" });
+    try {
+      const result = await requestRegister(payload);
+      saveAuthTokens(result);
+      const username = payload.username;
+      set({ user: { username }, isLoggedIn: true, authState: "online" });
+      localStorage.setItem("interview_username", username);
+      return null;
+    } catch (error) {
+      set({ authState: "offline" });
+      return toErrorMessage(error, "注册失败");
+    }
+  },
+  fetchCaptcha: async () => {
+    try {
+      return await requestCaptcha();
+    } catch {
+      return null;
+    }
+  },
+  logout: () => {
+    clearAuthTokens();
+    localStorage.removeItem("interview_username");
+    set({ user: null, isLoggedIn: false, authState: "idle" });
+  },
+
+  // quiz
   materials: seedMaterials,
   tasks: seedTasks,
   selectedMaterialIds: ["mat-java", "mat-spring"],
   materialFilter: "all",
   questionMode: "choice",
   difficulty: 3,
+  count: 10,
   interviewMode: true,
   apiState: "idle",
   quizState: "idle",
+  quizWarnings: [],
   draftQuestions: initialDraftQuestions,
   setMaterialFilter: (filter) => set({ materialFilter: filter }),
   setQuestionMode: (mode) => set({ questionMode: mode }),
   setDifficulty: (difficulty) => set({ difficulty }),
+  setCount: (count) => set({ count }),
   setInterviewMode: (enabled) => set({ interviewMode: enabled }),
   tickProgress: () =>
     set((state) => ({
@@ -151,7 +231,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
   },
   generateQuestions: async () => {
-    const { selectedMaterialIds, questionMode, difficulty, interviewMode } = get();
+    const { selectedMaterialIds, questionMode, difficulty, count, interviewMode } = get();
     const remoteMaterialIds = selectedMaterialIds
       .map((id) => Number(id))
       .filter((id) => Number.isInteger(id) && id > 0);
@@ -161,21 +241,60 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       return;
     }
 
-    set({ quizState: "syncing" });
+    set({ quizState: "syncing", quizWarnings: [] });
     try {
       const result = await requestGenerateQuiz({
         materialIds: remoteMaterialIds,
         questionType: questionMode,
         difficulty,
-        count: 3,
+        count,
         interviewMode
       });
       if (!result.questions?.length) {
         throw new Error("quiz generation returned no questions");
       }
-      set({ draftQuestions: result.questions.map((question) => question.stemText), quizState: "online" });
+      const warnings = result.warnings ?? [];
+      if (result.fallbackUsed && warnings.length === 0) {
+        warnings.push("题目生成部分使用了降级策略");
+      }
+      set({
+        draftQuestions: (result.questions ?? []).map((question) => question.stemText),
+        quizState: "online",
+        quizWarnings: warnings
+      });
     } catch {
-      set({ draftQuestions: createLocalDraftQuestions(), quizState: "offline" });
+      set({ draftQuestions: createLocalDraftQuestions(), quizState: "offline", quizWarnings: [] });
+    }
+  },
+  retryParseMaterial: async (materialId) => {
+    set({ apiState: "syncing" });
+    try {
+      const result = await requestRetryParse(materialId);
+      const material = get().materials.find((m) => m.id === String(materialId));
+      const materialName = material?.name ?? "未知资料";
+      const remoteTask = mapUploadTask(result.task, materialName);
+
+      set((state) => ({
+        apiState: "online",
+        tasks: [remoteTask, ...state.tasks],
+        materials: state.materials.map((item) =>
+          item.id === String(materialId)
+            ? { ...item, status: "parsing" as const, progress: 10, detail: "重新解析已入队" }
+            : item
+        )
+      }));
+
+      if (result.task?.taskNo) {
+        void pollTaskStatus(result.task.taskNo, String(materialId), materialName, set);
+      }
+    } catch (error) {
+      const detail = toErrorMessage(error, "重试解析失败");
+      set((state) => ({
+        apiState: "offline",
+        materials: state.materials.map((item) =>
+          item.id === String(materialId) ? { ...item, detail } : item
+        )
+      }));
     }
   }
 }));

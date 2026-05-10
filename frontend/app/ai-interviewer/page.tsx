@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquare,
@@ -14,8 +14,11 @@ import {
   TrendingUp,
   Award,
   ArrowRight,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import { getActiveSession, resumeSession, type InterviewSession } from "@/lib/interview-api";
 
 const positions = [
   "Java 后端",
@@ -35,7 +38,7 @@ const difficulties = [
 const mockMessages = [
   {
     role: "ai" as const,
-    content: "你好！我是你的 AI 面试官。今天我们将进行一场 Java 后端开发的模拟面试。请先做一下自我介绍吧。",
+    content: "[模拟回复] 你好！我是你的 AI 面试官。今天我们将进行一场 Java 后端开发的模拟面试。请先做一下自我介绍吧。",
     time: "14:30",
   },
   {
@@ -45,7 +48,7 @@ const mockMessages = [
   },
   {
     role: "ai" as const,
-    content: "很好。那我们先从技术基础开始。请说说 Java 中 HashMap 的底层实现原理，以及它在 JDK 1.8 中做了哪些优化？",
+    content: "[模拟回复] 很好。那我们先从技术基础开始。请说说 Java 中 HashMap 的底层实现原理，以及它在 JDK 1.8 中做了哪些优化？",
     time: "14:32",
   },
 ];
@@ -64,6 +67,23 @@ export default function AIInterviewerPage() {
   const [messages, setMessages] = useState(mockMessages);
   const [input, setInput] = useState("");
   const [finished, setFinished] = useState(false);
+  const [activeSession, setActiveSession] = useState<InterviewSession | null>(null);
+
+  useEffect(() => {
+    getActiveSession().then(setActiveSession).catch(() => {});
+  }, []);
+
+  const resumeLastSession = async () => {
+    if (!activeSession) return;
+    try {
+      await resumeSession(activeSession.id);
+      setPosition(activeSession.position);
+      setDifficulty(activeSession.difficulty);
+      startInterview();
+    } catch {
+      // fall through to normal start
+    }
+  };
 
   const startInterview = () => {
     setStarted(true);
@@ -80,7 +100,7 @@ export default function AIInterviewerPage() {
     setTimeout(() => {
       const aiReply = {
         role: "ai" as const,
-        content: "回答得不错！那我们再深入一点，你能说说 Redis 的持久化机制吗？RDB 和 AOF 各有什么优缺点？",
+        content: "[模拟回复] 回答得不错！那我们再深入一点，你能说说 Redis 的持久化机制吗？RDB 和 AOF 各有什么优缺点？",
         time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, aiReply]);
@@ -96,8 +116,8 @@ export default function AIInterviewerPage() {
       <div>
         <PageHero
           kicker="AI 面试官"
-          title="模拟面试"
-          description="选择岗位和难度，与 AI 面试官进行真实场景模拟。"
+          title="模拟面试（演示版）"
+          description="选择岗位和难度，体验 AI 面试官模拟流程。注意：当前为前端演示，尚未接入真实面试对话链路。"
         />
 
         <div className="panel">
@@ -138,9 +158,15 @@ export default function AIInterviewerPage() {
             </div>
           </div>
 
+          {activeSession && (
+            <button type="button" className="btn btn-ghost wide" onClick={resumeLastSession}>
+              <History size={16} />
+              恢复上次会话 ({activeSession.position} · L{activeSession.difficulty})
+            </button>
+          )}
           <button type="button" className="btn btn-accent wide" onClick={startInterview}>
             <MessageSquare size={16} />
-            开始面试
+            进入演示
             <ArrowRight size={14} />
           </button>
         </div>
@@ -250,6 +276,10 @@ export default function AIInterviewerPage() {
             </p>
             <p className="chat-subtitle">{position} · {difficulties[difficulty].label}</p>
           </div>
+          <span className="badge warning" title="后端尚未接入真实面试对话，当前为模拟演示">
+            <AlertTriangle size={11} />
+            模拟演示
+          </span>
           <div className="flex items-center gap-3">
             <p className="chat-timer">
               <Clock size={14} />

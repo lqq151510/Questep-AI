@@ -11,6 +11,7 @@ import {
   Trophy,
   Target,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 
@@ -90,9 +91,15 @@ export default function AITestPage() {
       <div>
         <PageHero
           kicker="AI 测试"
-          title="智能技术测试"
-          description="选择技术方向和难度，AI 将为你生成个性化面试题目。"
+          title="智能技术测试（演示版）"
+          description="选择技术方向和难度，体验 AI 出题流程。注意：当前为前端演示，题目为固定示例，尚未接入真实 AI 出题链路。"
         />
+        <div className="panel">
+          <span className="badge warning" title="后端尚未接入真实 AI 出题，当前为模拟演示">
+            <AlertTriangle size={11} />
+            模拟演示
+          </span>
+        </div>
 
         <div className="panel">
           <div className="field-group">
@@ -127,7 +134,7 @@ export default function AITestPage() {
 
           <button type="button" className="btn btn-accent wide" onClick={startTest}>
             <BrainCircuit size={16} />
-            开始测试
+            进入演示
             <ArrowRight size={14} />
           </button>
         </div>

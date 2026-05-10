@@ -4,6 +4,7 @@ import com.interview.domain.model.Question;
 import com.interview.infrastructure.persistence.entity.QuestionPO;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface QuestionMapper {
@@ -14,11 +15,17 @@ public interface QuestionMapper {
 
     Question selectById(Long id);
 
-    List<Question> selectRecentByUser(@Param("userId") Long userId, @Param("limit") int limit);
+    List<Question> selectRecentByUser(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
 
     List<Question> selectByCondition(QuestionPO condition);
 
     List<Question> selectByIds(@Param("ids") List<Long> ids);
 
     int deleteById(Long id);
+
+    int markExpiredForReview(@Param("reviewedAt") LocalDateTime reviewedAt, @Param("reviewStatus") String reviewStatus);
+
+    List<Question> selectPendingRefreshCandidates(@Param("reviewStatus") String reviewStatus, @Param("limit") int limit);
+
+    int archiveQuestion(@Param("questionId") Long questionId, @Param("archivedAt") LocalDateTime archivedAt);
 }

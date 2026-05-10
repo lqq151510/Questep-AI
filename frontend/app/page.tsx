@@ -15,6 +15,7 @@ import {
 import { PageHero } from "@/components/new-ui/PageHero";
 import { FeatureCard } from "@/components/new-ui/cards";
 import { AnimatedCounter } from "@/components/new-ui/cards";
+import { LockKeyhole, Settings2, Users } from "lucide-react";
 
 const features = [
   {
@@ -68,6 +69,30 @@ const stats = [
   { label: "用户满意度", value: 98, suffix: "%" },
 ];
 
+const entryCards = [
+  {
+    icon: LockKeyhole,
+    title: "登录 / 注册",
+    desc: "进入个人训练空间，保存题单、错题与模型配置。",
+    href: "/login",
+    accent: "var(--blue)",
+  },
+  {
+    icon: Settings2,
+    title: "自定义模型",
+    desc: "填入 Base URL、API Key 和模型名，切换你的专属模型。",
+    href: "/home",
+    accent: "var(--cyan)",
+  },
+  {
+    icon: Users,
+    title: "题量控制",
+    desc: "按 5 / 10 / 20 / 30 题自由调整，适配不同训练节奏。",
+    href: "/question-bank",
+    accent: "var(--green)",
+  },
+];
+
 export default function LandingPage() {
   return (
     <div>
@@ -88,6 +113,69 @@ export default function LandingPage() {
           </>
         }
       />
+
+      <section className="hero-split">
+        <motion.div
+          className="panel hero-panel"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.45 }}
+        >
+          <div className="panel-header compact">
+            <div>
+              <h2>现在开始</h2>
+              <p>先登录，再配置模型和题量。</p>
+            </div>
+          </div>
+          <div className="hero-entry-grid">
+            {entryCards.map((entry) => {
+              const Icon = entry.icon;
+              return (
+                <Link href={entry.href} key={entry.title} className="hero-entry-card">
+                  <span className="hero-entry-icon" style={{ color: entry.accent, background: `${entry.accent}12` }}>
+                    <Icon size={18} />
+                  </span>
+                  <div>
+                    <h3>{entry.title}</h3>
+                    <p>{entry.desc}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="panel hero-side-panel"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, duration: 0.45 }}
+        >
+          <div className="panel-header compact">
+            <div>
+              <h2>训练节奏</h2>
+              <p>把功能区按优先级排清楚。</p>
+            </div>
+          </div>
+          <div className="hero-side-stack">
+            <div>
+              <span className="hero-side-label">首要</span>
+              <strong>登录 / 注册</strong>
+              <p>先进入个人空间，再保存模型和题单。</p>
+            </div>
+            <div>
+              <span className="hero-side-label">次要</span>
+              <strong>模型配置</strong>
+              <p>支持 OpenAI、DeepSeek、本地模型的统一切换。</p>
+            </div>
+            <div>
+              <span className="hero-side-label">训练</span>
+              <strong>题量与题型</strong>
+              <p>按学习状态快速选择题目数量与模式。</p>
+            </div>
+          </div>
+        </motion.div>
+      </section>
 
       {/* Stats */}
       <motion.section

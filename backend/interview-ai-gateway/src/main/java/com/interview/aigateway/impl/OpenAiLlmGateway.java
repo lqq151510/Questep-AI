@@ -12,7 +12,7 @@ import org.springframework.web.client.RestClientException;
 import java.util.List;
 
 @Component
-@ConditionalOnProperty(name = "app.llm.provider", havingValue = "openai")
+@ConditionalOnProperty(name = "app.llm.legacy-enabled", havingValue = "true")
 public class OpenAiLlmGateway implements LlmGateway {
 
     private final RestClient restClient;
@@ -43,7 +43,7 @@ public class OpenAiLlmGateway implements LlmGateway {
     }
 
     @Override
-    public String chat(String prompt) {
+    public String chat(Long userId, String prompt) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new OpenAiGatewayException("app.llm.api-key is not configured for provider=openai");
         }

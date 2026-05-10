@@ -13,6 +13,12 @@
             <arg column="difficulty" javaType="java.lang.Integer"/>
             <arg column="source_type" javaType="java.lang.String"/>
             <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="source_url" javaType="java.lang.String"/>
+            <arg column="source_version" javaType="java.lang.String"/>
+            <arg column="last_verified_at" javaType="java.time.LocalDateTime"/>
+            <arg column="confidence_score" javaType="java.math.BigDecimal"/>
+            <arg column="expires_at" javaType="java.time.LocalDateTime"/>
+            <arg column="review_status" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.LocalDateTime"/>
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
         </constructor>
@@ -30,13 +36,19 @@
         <result property="difficulty" column="difficulty"/>
         <result property="sourceType" column="source_type"/>
         <result property="modelName" column="model_name"/>
+        <result property="sourceUrl" column="source_url"/>
+        <result property="sourceVersion" column="source_version"/>
+        <result property="lastVerifiedAt" column="last_verified_at"/>
+        <result property="confidenceScore" column="confidence_score"/>
+        <result property="expiresAt" column="expires_at"/>
+        <result property="reviewStatus" column="review_status"/>
         <result property="status" column="status"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
     <sql id="questionColumns">
-        id,material_id,creator_user_id,question_type,stem_text,options_json,reference_answer,analysis_text,difficulty,source_type,model_name,status,created_at,updated_at
+        id,material_id,creator_user_id,question_type,stem_text,options_json,reference_answer,analysis_text,difficulty,source_type,model_name,source_url,source_version,last_verified_at,confidence_score,expires_at,review_status,status,created_at,updated_at
     </sql>
 
     <sql id="questionInsertColumns">
@@ -51,6 +63,12 @@
             <if test="difficulty != null">difficulty,</if>
             <if test="sourceType != null">source_type,</if>
             <if test="modelName != null">model_name,</if>
+            <if test="sourceUrl != null">source_url,</if>
+            <if test="sourceVersion != null">source_version,</if>
+            <if test="lastVerifiedAt != null">last_verified_at,</if>
+            <if test="confidenceScore != null">confidence_score,</if>
+            <if test="expiresAt != null">expires_at,</if>
+            <if test="reviewStatus != null">review_status,</if>
             <if test="status != null">status,</if>
         </trim>
     </sql>
@@ -67,6 +85,12 @@
             <if test="difficulty != null">#{difficulty},</if>
             <if test="sourceType != null">#{sourceType},</if>
             <if test="modelName != null">#{modelName},</if>
+            <if test="sourceUrl != null">#{sourceUrl},</if>
+            <if test="sourceVersion != null">#{sourceVersion},</if>
+            <if test="lastVerifiedAt != null">#{lastVerifiedAt},</if>
+            <if test="confidenceScore != null">#{confidenceScore},</if>
+            <if test="expiresAt != null">#{expiresAt},</if>
+            <if test="reviewStatus != null">#{reviewStatus},</if>
             <if test="status != null">#{status},</if>
         </trim>
     </sql>
@@ -93,6 +117,12 @@
             <if test="difficulty != null">difficulty = #{difficulty},</if>
             <if test="sourceType != null">source_type = #{sourceType},</if>
             <if test="modelName != null">model_name = #{modelName},</if>
+            <if test="sourceUrl != null">source_url = #{sourceUrl},</if>
+            <if test="sourceVersion != null">source_version = #{sourceVersion},</if>
+            <if test="lastVerifiedAt != null">last_verified_at = #{lastVerifiedAt},</if>
+            <if test="confidenceScore != null">confidence_score = #{confidenceScore},</if>
+            <if test="expiresAt != null">expires_at = #{expiresAt},</if>
+            <if test="reviewStatus != null">review_status = #{reviewStatus},</if>
             <if test="status != null">status = #{status},</if>
             updated_at = CURRENT_TIMESTAMP
         </set>
@@ -109,8 +139,12 @@
         SELECT <include refid="questionColumns"/>
         FROM questions
         WHERE creator_user_id = #{userId}
+          AND status = 1
+          AND review_status = 'APPROVED'
+          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+          AND confidence_score >= 0.700
         ORDER BY id DESC
-        LIMIT #{limit}
+        LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="selectByCondition" resultMap="questionMap">
@@ -141,4 +175,33 @@
     <delete id="deleteById" parameterType="long">
         DELETE FROM questions WHERE id = #{id}
     </delete>
+
+    <update id="markExpiredForReview">
+        UPDATE questions
+        SET review_status = #{reviewStatus},
+            last_verified_at = #{reviewedAt},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE expires_at IS NOT NULL
+          AND expires_at &lt;= #{reviewedAt}
+          AND (review_status IS NULL OR review_status != #{reviewStatus})
+    </update>
+
+    <select id="selectPendingRefreshCandidates" resultMap="questionMap">
+        SELECT <include refid="questionColumns"/>
+        FROM questions
+        WHERE status = 1
+          AND review_status = #{reviewStatus}
+          AND material_id IS NOT NULL
+          AND creator_user_id IS NOT NULL
+        ORDER BY expires_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="archiveQuestion">
+        UPDATE questions
+        SET status = 0,
+            updated_at = CURRENT_TIMESTAMP,
+            last_verified_at = #{archivedAt}
+        WHERE id = #{questionId}
+    </update>
 </mapper>

@@ -1,5 +1,6 @@
 package com.interview.infrastructure.persistence.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class QuestionPO {
@@ -14,6 +15,12 @@ public class QuestionPO {
     private Integer difficulty;
     private String sourceType;
     private String modelName;
+    private String sourceUrl;
+    private String sourceVersion;
+    private LocalDateTime lastVerifiedAt;
+    private BigDecimal confidenceScore;
+    private LocalDateTime expiresAt;
+    private String reviewStatus;
     private Integer status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -40,6 +47,18 @@ public class QuestionPO {
     public void setSourceType(String sourceType) { this.sourceType = sourceType; }
     public String getModelName() { return modelName; }
     public void setModelName(String modelName) { this.modelName = modelName; }
+    public String getSourceUrl() { return sourceUrl; }
+    public void setSourceUrl(String sourceUrl) { this.sourceUrl = sourceUrl; }
+    public String getSourceVersion() { return sourceVersion; }
+    public void setSourceVersion(String sourceVersion) { this.sourceVersion = sourceVersion; }
+    public LocalDateTime getLastVerifiedAt() { return lastVerifiedAt; }
+    public void setLastVerifiedAt(LocalDateTime lastVerifiedAt) { this.lastVerifiedAt = lastVerifiedAt; }
+    public BigDecimal getConfidenceScore() { return confidenceScore; }
+    public void setConfidenceScore(BigDecimal confidenceScore) { this.confidenceScore = confidenceScore; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public String getReviewStatus() { return reviewStatus; }
+    public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }

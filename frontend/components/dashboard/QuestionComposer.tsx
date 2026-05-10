@@ -12,14 +12,19 @@ const questionModes: Array<[QuestionMode, string]> = [
   ["code", "编程"]
 ];
 
+const countOptions = [5, 10, 20, 30];
+
 export function QuestionComposer() {
   const questionMode = useDashboardStore((state) => state.questionMode);
   const difficulty = useDashboardStore((state) => state.difficulty);
+  const count = useDashboardStore((state) => state.count);
   const interviewMode = useDashboardStore((state) => state.interviewMode);
   const quizState = useDashboardStore((state) => state.quizState);
+  const quizWarnings = useDashboardStore((state) => state.quizWarnings);
   const draftQuestions = useDashboardStore((state) => state.draftQuestions);
   const setQuestionMode = useDashboardStore((state) => state.setQuestionMode);
   const setDifficulty = useDashboardStore((state) => state.setDifficulty);
+  const setCount = useDashboardStore((state) => state.setCount);
   const setInterviewMode = useDashboardStore((state) => state.setInterviewMode);
   const generateQuestions = useDashboardStore((state) => state.generateQuestions);
 
@@ -42,6 +47,16 @@ export function QuestionComposer() {
               <AlertTriangle size={14} />
               本地生成
             </span>
+          )}
+          {quizWarnings.length > 0 && (
+            <div className="warnings-banner">
+              <AlertTriangle size={14} />
+              <div className="warnings-list">
+                {quizWarnings.map((w, i) => (
+                  <span key={i}>{w}</span>
+                ))}
+              </div>
+            </div>
           )}
           <Button
             aria-busy={quizState === "syncing"}
@@ -93,10 +108,26 @@ export function QuestionComposer() {
             <span />
             <strong>面试追问模式</strong>
           </label>
+
+          <div className="field-group">
+            <span className="field-label">题量</span>
+            <div className="chip-row">
+              {countOptions.map((opt) => (
+                <button
+                  key={opt}
+                  className={`chip ${count === opt ? "active" : ""}`}
+                  onClick={() => setCount(opt)}
+                  type="button"
+                >
+                  {opt} 题
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="question-preview">
-          {draftQuestions.map((question, index) => (
+          {(draftQuestions ?? []).map((question, index) => (
             <article className="question-card" key={question}>
               <div className="question-index">{index + 1}</div>
               <p>{question}</p>

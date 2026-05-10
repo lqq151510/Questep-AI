@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,12 +56,67 @@ public class MaterialParseTaskProcessor {
         } catch (Exception e) {
             logger.error("Error processing task: taskNo={}, error={}", task.taskNo(), e.getMessage(), e);
             String errorMsg = summarizeError(e);
+
+            // Categorize the error
+            String errorCode;
+            String stage;
+            boolean retryable;
+
+            if (e instanceof ResourceNotFoundException) {
+                errorCode = "MATERIAL_NOT_FOUND";
+                stage = "PARSE";
+                retryable = false;
+            } else if (e instanceof IllegalArgumentException) {
+                errorCode = "BAD_REQUEST";
+                stage = "PARSE";
+                retryable = false;
+            } else if (e instanceof IllegalStateException) {
+                String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("LLM returned empty")) {
+                    errorCode = "LLM_EMPTY_RESPONSE";
+                    stage = "LLM";
+                    retryable = true;
+                } else if (msg.contains("empty") || msg.contains("does not exist")) {
+                    errorCode = "FILE_ERROR";
+                    stage = "STORAGE";
+                    retryable = false;
+                } else {
+                    errorCode = "INTERNAL_ERROR";
+                    stage = "PARSE";
+                    retryable = true;
+                }
+            } else if (e instanceof IOException) {
+                errorCode = "STORAGE_ERROR";
+                stage = "STORAGE";
+                retryable = true;
+            } else {
+                errorCode = "INTERNAL_ERROR";
+                stage = "PARSE";
+                retryable = true;
+            }
+
+            // Clean up temp files on non-retryable permanent errors
+            if (!retryable) {
+                try {
+                    Material material = materialRepository.findById(task.bizId()).orElse(null);
+                    if (material != null && material.storageUrl() != null) {
+                        Path storagePath = Paths.get(material.storageUrl()).normalize();
+                        if (Files.exists(storagePath)) {
+                            Files.deleteIfExists(storagePath);
+                            logger.info("Deleted temp file for non-retryable error: {}", storagePath);
+                        }
+                    }
+                } catch (Exception cleanupError) {
+                    logger.warn("Failed to clean up temp file for task {}: {}", task.taskNo(), cleanupError.getMessage());
+                }
+            }
+
             try {
                 materialRepository.markParseFailure(task.bizId(), errorMsg);
             } catch (Exception updateMaterialError) {
                 logger.error("Failed to update material parse failure state: materialId={}", task.bizId(), updateMaterialError);
             }
-            asyncTaskRecordRepository.updateError(task.id(), errorMsg);
+            asyncTaskRecordRepository.updateError(task.id(), errorMsg, errorCode, stage, retryable);
         }
     }
 
@@ -73,6 +129,13 @@ public class MaterialParseTaskProcessor {
                 .orElseThrow(() -> new ResourceNotFoundException("Material not found: " + task.bizId()));
 
         asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 50);
+
+        // Handle non-text file types (binary files that need special parsers)
+        String fileType = material.fileType();
+        if (fileType != null && isNonTextFileType(fileType)) {
+            handleNonTextFile(material, fileType);
+            return;
+        }
 
         String storageUrl = material.storageUrl();
         if (storageUrl == null || storageUrl.isBlank()) {
@@ -97,7 +160,7 @@ public class MaterialParseTaskProcessor {
                 "Material name: " + material.name() + "\n" +
                 "Content: " + (content.length() > 2000 ? content.substring(0, 2000) : content);
         logger.info("Calling LLM to analyze material: {}", material.name());
-        String analysis = llmGateway.chat(prompt);
+        String analysis = llmGateway.chat(task.createdBy(), prompt);
         if (analysis == null || analysis.isBlank()) {
             throw new IllegalStateException("LLM returned empty analysis for material: " + material.id());
         }
@@ -106,6 +169,32 @@ public class MaterialParseTaskProcessor {
 
         asyncTaskRecordRepository.updateStatus(task.id(), TaskConstants.STATUS_PROCESSING, 80);
         logger.info("Material parsing completed for id: {}", task.bizId());
+    }
+
+    private boolean isNonTextFileType(String fileType) {
+        return "PDF".equals(fileType) || "DOCX".equals(fileType)
+                || "PNG".equals(fileType) || "JPG".equals(fileType) || "JPEG".equals(fileType);
+    }
+
+    private void handleNonTextFile(Material material, String fileType) {
+        String analysis;
+        switch (fileType) {
+            case "PDF":
+                analysis = "PDF 文件解析器暂未配置，文件已保存等待后续处理";
+                break;
+            case "DOCX":
+                analysis = "DOCX 文件解析器暂未配置，文件已保存等待后续处理";
+                break;
+            case "PNG":
+            case "JPG":
+            case "JPEG":
+                analysis = "图片文件已上传 (OCR 暂未接入)，文件名: " + material.name();
+                break;
+            default:
+                analysis = "文件类型 " + fileType + " 的解析器暂未配置，文件已保存等待后续处理";
+        }
+        logger.warn("Non-text file type {} for material {}, storing placeholder analysis", fileType, material.id());
+        materialRepository.markParseSuccess(material.id(), null, analysis);
     }
 
     private String summarizeError(Exception e) {

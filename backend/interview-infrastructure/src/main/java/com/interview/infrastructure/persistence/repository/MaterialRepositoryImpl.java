@@ -55,6 +55,11 @@ public class MaterialRepositoryImpl implements MaterialRepository {
     }
 
     @Override
+    public void markParsePending(Long id) {
+        materialMapper.updateParsePending(id);
+    }
+
+    @Override
     public void markParseFailure(Long id, String errorMsg) {
         String safeError = errorMsg;
         if (safeError == null || safeError.isBlank()) {

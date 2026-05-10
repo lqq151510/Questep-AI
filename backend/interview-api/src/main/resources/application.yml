@@ -54,16 +54,24 @@ app:
     host: ${MILVUS_HOST:127.0.0.1}
     port: ${MILVUS_PORT:19530}
   llm:
-    provider: ${LLM_PROVIDER:noop}
-    base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
-    api-key: ${LLM_API_KEY:}
-    model: ${LLM_MODEL:gpt-4o-mini}
+    provider: ${LLM_PROVIDER:anthropic}
+    base-url: ${LLM_BASE_URL:${ANTHROPIC_BASE_URL:https://api.deepseek.com/anthropic}}
+    api-key: ${LLM_API_KEY:${ANTHROPIC_AUTH_TOKEN:}}
+    model: ${LLM_MODEL:${ANTHROPIC_MODEL:deepseek-v4-flash}}
     system-prompt: ${LLM_SYSTEM_PROMPT:You generate concise interview practice material grounded in backend project experience.}
+    enable-local-claude-settings-fallback: ${LLM_ENABLE_LOCAL_CLAUDE_SETTINGS_FALLBACK:true}
+    claude-code-settings-path: ${LLM_CLAUDE_CODE_SETTINGS_PATH:${user.home}/.claude/settings.json}
     retry:
       max-attempts: ${LLM_RETRY_MAX_ATTEMPTS:3}
       backoff-ms: ${LLM_RETRY_BACKOFF_MS:500}
+  captcha:
+    ttl-seconds: ${CAPTCHA_TTL_SECONDS:300}
   quiz:
     question-guidance: ${QUIZ_QUESTION_GUIDANCE:Keep each question grounded in backend project experience.}
+  question-review:
+    expire-scan-cron: ${QUESTION_EXPIRE_SCAN_CRON:0 0 3 * * *}
+    auto-refresh-cron: ${QUESTION_AUTO_REFRESH_CRON:0 15 3 * * *}
+    refresh-batch-size: ${QUESTION_REFRESH_BATCH_SIZE:10}
 
 management:
   endpoints:

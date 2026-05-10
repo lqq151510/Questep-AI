@@ -13,7 +13,7 @@ public interface AsyncTaskRecordMapper {
 
     int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("progress") Integer progress);
 
-    int updateError(@Param("id") Long id, @Param("errorMsg") String errorMsg);
+    int updateError(@Param("id") Long id, @Param("errorMsg") String errorMsg, @Param("errorCode") String errorCode, @Param("stage") String stage, @Param("retryable") Boolean retryable);
 
     AsyncTaskRecord selectById(Long id);
 

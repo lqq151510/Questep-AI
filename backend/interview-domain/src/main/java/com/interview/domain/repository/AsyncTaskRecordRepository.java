@@ -17,5 +17,5 @@ public interface AsyncTaskRecordRepository {
 
     AsyncTaskRecord updateStatus(Long id, String status, Integer progress);
 
-    AsyncTaskRecord updateError(Long id, String errorMsg);
+    AsyncTaskRecord updateError(Long id, String errorMsg, String errorCode, String stage, Boolean retryable);
 }

@@ -1,51 +1,38 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   BookOpen,
   Upload,
   FileText,
-  Trash2,
   Loader2,
   CheckCircle,
   Search,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
-
-const mockMaterials = [
-  {
-    id: 1,
-    name: "Java 并发编程实战.pdf",
-    type: "PDF",
-    size: "2.4 MB",
-    status: "已解析" as const,
-    date: "2024-01-15",
-  },
-  {
-    id: 2,
-    name: "Redis 设计与实现.md",
-    type: "Markdown",
-    size: "156 KB",
-    status: "已解析" as const,
-    date: "2024-01-14",
-  },
-  {
-    id: 3,
-    name: "Spring Boot 源码分析.txt",
-    type: "Text",
-    size: "89 KB",
-    status: "解析中" as const,
-    date: "2024-01-13",
-  },
-];
+import { useDashboardStore } from "@/stores/useDashboardStore";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function KnowledgeBasePage() {
-  const [materials, setMaterials] = useState(mockMaterials);
+  const {
+    materials,
+    apiState,
+    uploadMaterial,
+    refreshMaterials,
+  } = useDashboardStore();
+
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    refreshMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = materials.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase())
@@ -55,29 +42,17 @@ export default function KnowledgeBasePage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
-    const file = files[0];
-    const newMaterial = {
-      id: Date.now(),
-      name: file.name,
-      type: file.name.split(".").pop()?.toUpperCase() || "File",
-      size: (file.size / 1024).toFixed(0) + " KB",
-      status: "解析中" as const,
-      date: new Date().toISOString().split("T")[0],
-    };
-    setMaterials((prev) => [newMaterial, ...prev]);
-
-    setTimeout(() => {
-      setMaterials((prev) =>
-        prev.map((m) => (m.id === newMaterial.id ? { ...m, status: "已解析" as const } : m))
-      );
-    }, 3000);
+    await uploadMaterial(files[0]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const deleteMaterial = (id: number) => {
-    setMaterials((prev) => prev.filter((m) => m.id !== id));
+  const statusLabel = (status: string) => {
+    if (status === "ready") return "已解析";
+    if (status === "parsing") return "解析中";
+    return "失败";
   };
 
   return (
@@ -128,15 +103,30 @@ export default function KnowledgeBasePage() {
         </div>
       </div>
 
+      {/* Loading */}
+      {apiState === "syncing" && filtered.length === 0 && (
+        <div className="material-grid">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="material-card">
+              <Skeleton className="h-5 w-5 mb-3" />
+              <Skeleton className="h-5 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Materials Grid */}
-      {filtered.length === 0 ? (
+      {apiState !== "syncing" && filtered.length === 0 && (
         <EmptyState
           icon={BookOpen}
           title="暂无资料"
           description="上传你的学习资料，AI 将自动解析并生成知识库"
           action={{ label: "上传资料", onClick: handleUpload }}
         />
-      ) : (
+      )}
+
+      {filtered.length > 0 && (
         <div className="material-grid">
           {filtered.map((m, i) => (
             <motion.div
@@ -151,27 +141,26 @@ export default function KnowledgeBasePage() {
                 <button
                   type="button"
                   className="btn btn-ghost icon-btn"
-                  onClick={() => deleteMaterial(m.id)}
+                  onClick={() => refreshMaterials()}
+                  title="刷新"
                 >
-                  <Trash2 size={14} />
+                  <RefreshCw size={14} />
                 </button>
               </div>
               <h3 className="truncate">{m.name}</h3>
               <p className="meta-text">
-                {m.type} · {m.size} · {m.date}
+                {m.type} · {m.updatedAt}
               </p>
               <div className="tag-row">
-                <span
-                  className={`badge ${
-                    m.status === "已解析" ? "success" : "warning"
-                  }`}
-                >
-                  {m.status === "已解析" ? (
+                <span className={`badge ${m.status === "ready" ? "success" : m.status === "failed" ? "danger" : "warning"}`}>
+                  {m.status === "ready" ? (
                     <CheckCircle size={12} />
+                  ) : m.status === "failed" ? (
+                    <AlertTriangle size={12} />
                   ) : (
                     <Loader2 size={12} className="animate-spin" />
                   )}
-                  {m.status}
+                  {statusLabel(m.status)}
                 </span>
               </div>
             </motion.div>

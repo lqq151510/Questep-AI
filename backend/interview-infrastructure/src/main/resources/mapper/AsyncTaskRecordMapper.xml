@@ -15,10 +15,13 @@
             <arg column="finished_at" javaType="java.time.LocalDateTime"/>
             <arg column="created_at" javaType="java.time.LocalDateTime"/>
             <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="stage" javaType="java.lang.String"/>
+            <arg column="retryable" javaType="java.lang.Boolean"/>
         </constructor>
     </resultMap>
 
-    <sql id="taskColumns">id,task_no,task_type,biz_id,status,progress,error_msg,created_by,started_at,finished_at,created_at,updated_at</sql>
+    <sql id="taskColumns">id,task_no,task_type,biz_id,status,progress,error_msg,created_by,started_at,finished_at,created_at,updated_at,error_code,stage,retryable</sql>
 
     <sql id="taskInsertColumns">
         <trim suffixOverrides=",">
@@ -77,7 +80,13 @@
 
     <update id="updateError">
         UPDATE async_task_records
-        SET status = 'FAILED', error_msg = #{errorMsg}, updated_at = CURRENT_TIMESTAMP, finished_at = CURRENT_TIMESTAMP
+        SET status = 'FAILED',
+            error_msg = #{errorMsg},
+            error_code = #{errorCode},
+            stage = #{stage},
+            retryable = #{retryable},
+            updated_at = CURRENT_TIMESTAMP,
+            finished_at = CURRENT_TIMESTAMP
         WHERE id = #{id}
     </update>
 
