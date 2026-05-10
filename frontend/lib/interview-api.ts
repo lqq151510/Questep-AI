@@ -38,6 +38,7 @@ export type BackendQuestion = {
   creatorUserId?: number | null;
   questionType?: string;
   stemText: string;
+  optionsJson?: Record<string, string> | null;
   referenceAnswer?: string | null;
   analysisText?: string | null;
   difficulty?: number | null;
@@ -67,6 +68,7 @@ export type BackendAsyncTask = {
   id?: number;
   taskNo?: string;
   taskType?: string;
+  bizType?: string;
   bizId?: number;
   status?: string;
   progress?: number;
@@ -346,6 +348,13 @@ export async function retryParseMaterial(materialId: number): Promise<UploadMate
   return unwrap<UploadMaterialResult>(response, "重试解析失败");
 }
 
+export async function deleteMaterial(materialId: number): Promise<void> {
+  const response = await fetchWithAuth(`/api/v1/materials/${materialId}`, {
+    method: "DELETE"
+  });
+  await unwrap<void>(response, "删除资料失败");
+}
+
 export async function deleteWrongBook(id: number): Promise<void> {
   const response = await fetchWithAuth(`/api/v1/wrong-books/${id}`, {
     method: "DELETE"
@@ -384,6 +393,55 @@ export async function resumeSession(sessionId: number): Promise<InterviewSession
     method: "POST"
   });
   return unwrap<InterviewSession>(response, "恢复会话失败");
+}
+
+export type ChatMessagePayload = {
+  role: string;
+  content: string;
+};
+
+export type ChatResponse = {
+  reply: string;
+};
+
+export async function sendChatMessage(message: string, context?: ChatMessagePayload[]): Promise<ChatResponse> {
+  const response = await fetchWithAuth("/api/v1/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, context })
+  });
+  return unwrap<ChatResponse>(response, "对话失败");
+}
+
+export type LlmSettingsView = {
+  providerName: string;
+  modelName: string;
+  baseUrl: string;
+  hasApiKey: boolean;
+  enabled: boolean;
+  source: string;
+};
+
+export type UpdateLlmSettingsPayload = {
+  providerName: string;
+  modelName: string;
+  baseUrl?: string;
+  apiKey?: string;
+  enabled?: boolean;
+};
+
+export async function getLlmSettings(): Promise<LlmSettingsView> {
+  const response = await fetchWithAuth("/api/v1/llm/settings", { cache: "no-store" });
+  return unwrap<LlmSettingsView>(response, "获取模型设置失败");
+}
+
+export async function updateLlmSettings(payload: UpdateLlmSettingsPayload): Promise<LlmSettingsView> {
+  const response = await fetchWithAuth("/api/v1/llm/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  return unwrap<LlmSettingsView>(response, "保存模型设置失败");
 }
 
 export function toErrorMessage(error: unknown, fallback = "请求失败，请稍后重试"): string {

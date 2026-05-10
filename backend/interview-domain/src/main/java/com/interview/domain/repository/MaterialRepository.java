@@ -15,6 +15,10 @@ public interface MaterialRepository {
 
     Optional<Material> findById(Long id);
 
+    Optional<Material> findByIdAndUserId(Long id, Long userId);
+
+    void deleteById(Long id);
+
     void markParseSuccess(Long id, String contentHash, String analysisText);
 
     void markParseFailure(Long id, String errorMsg);

@@ -16,10 +16,11 @@ public class AsyncTaskRecordRepositoryImpl implements AsyncTaskRecordRepository 
 
     private final AsyncTaskRecordMapper mapper;
     public AsyncTaskRecordRepositoryImpl(AsyncTaskRecordMapper mapper) { this.mapper = mapper; }
-    public AsyncTaskRecord create(String taskNo, String taskType, Long bizId, Long createdBy) {
+    public AsyncTaskRecord create(String taskNo, String taskType, String bizType, Long bizId, Long createdBy) {
         AsyncTaskRecordPO po = new AsyncTaskRecordPO();
         po.setTaskNo(taskNo);
         po.setTaskType(taskType);
+        po.setBizType(bizType);
         po.setBizId(bizId);
         po.setStatus("PENDING");
         po.setProgress(0);

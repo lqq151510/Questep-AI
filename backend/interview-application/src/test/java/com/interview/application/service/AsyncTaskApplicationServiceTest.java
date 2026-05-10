@@ -34,6 +34,7 @@ class AsyncTaskApplicationServiceTest {
                 1L,
                 "PARSE-123456",
                 "MATERIAL_PARSE",
+                "MATERIAL_PARSE",
                 100L,
                 "PROCESSING",
                 50,

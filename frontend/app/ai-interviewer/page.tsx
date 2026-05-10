@@ -10,15 +10,20 @@ import {
   Bot,
   RotateCcw,
   Star,
-  Target,
-  TrendingUp,
   Award,
   ArrowRight,
-  AlertTriangle,
+  Loader2,
   History,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
-import { getActiveSession, resumeSession, type InterviewSession } from "@/lib/interview-api";
+import {
+  createOrGetSession,
+  resumeSession,
+  sendChatMessage,
+  type ChatMessagePayload,
+  type InterviewSession,
+  toErrorMessage,
+} from "@/lib/interview-api";
 
 const positions = [
   "Java 后端",
@@ -35,76 +40,107 @@ const difficulties = [
   { label: "高级", desc: "5 年以上" },
 ];
 
-const mockMessages = [
-  {
-    role: "ai" as const,
-    content: "[模拟回复] 你好！我是你的 AI 面试官。今天我们将进行一场 Java 后端开发的模拟面试。请先做一下自我介绍吧。",
-    time: "14:30",
-  },
-  {
-    role: "user" as const,
-    content: "你好，我叫张三，有 3 年 Java 开发经验，熟悉 Spring Boot、MySQL、Redis 等技术栈。",
-    time: "14:31",
-  },
-  {
-    role: "ai" as const,
-    content: "[模拟回复] 很好。那我们先从技术基础开始。请说说 Java 中 HashMap 的底层实现原理，以及它在 JDK 1.8 中做了哪些优化？",
-    time: "14:32",
-  },
-];
-
-const scores = [
-  { label: "技术能力", score: 85, icon: Target },
-  { label: "表达能力", score: 78, icon: MessageSquare },
-  { label: "逻辑思维", score: 82, icon: TrendingUp },
-  { label: "项目经验", score: 80, icon: Award },
-];
+type InterviewMessage = {
+  role: "ai" | "user";
+  content: string;
+  time: string;
+};
 
 export default function AIInterviewerPage() {
   const [position, setPosition] = useState("Java 后端");
   const [difficulty, setDifficulty] = useState(1);
   const [started, setStarted] = useState(false);
-  const [messages, setMessages] = useState(mockMessages);
+  const [messages, setMessages] = useState<InterviewMessage[]>([]);
   const [input, setInput] = useState("");
   const [finished, setFinished] = useState(false);
   const [activeSession, setActiveSession] = useState<InterviewSession | null>(null);
+  const [sending, setSending] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    getActiveSession().then(setActiveSession).catch(() => {});
-  }, []);
+    createOrGetSession(position, difficulty + 1).then(setActiveSession).catch(() => {});
+  }, [position, difficulty]);
 
   const resumeLastSession = async () => {
     if (!activeSession) return;
     try {
       await resumeSession(activeSession.id);
       setPosition(activeSession.position);
-      setDifficulty(activeSession.difficulty);
+      setDifficulty(activeSession.difficulty - 1);
       startInterview();
     } catch {
       // fall through to normal start
     }
   };
 
-  const startInterview = () => {
-    setStarted(true);
-    setMessages(mockMessages);
-    setFinished(false);
+  const startInterview = async () => {
+    setStarting(true);
+    setError("");
+    try {
+      const session = await createOrGetSession(position, difficulty + 1);
+      setActiveSession(session);
+
+      const greeting: InterviewMessage = {
+        role: "ai",
+        content: `你好！我是你的 AI 面试官。今天我们将进行一场 ${position} 的模拟面试（${difficulties[difficulty].label}）。请先做一下自我介绍吧。`,
+        time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages([greeting]);
+      setStarted(true);
+      setFinished(false);
+    } catch (e) {
+      setError(toErrorMessage(e, "创建面试会话失败"));
+    } finally {
+      setStarting(false);
+    }
   };
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    const newMsg = { role: "user" as const, content: input, time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) };
+  const sendMessage = async () => {
+    if (!input.trim() || sending) return;
+    const newMsg: InterviewMessage = {
+      role: "user",
+      content: input,
+      time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+    };
     setMessages((prev) => [...prev, newMsg]);
     setInput("");
+    setSending(true);
+    setError("");
 
-    setTimeout(() => {
-      const aiReply = {
-        role: "ai" as const,
-        content: "[模拟回复] 回答得不错！那我们再深入一点，你能说说 Redis 的持久化机制吗？RDB 和 AOF 各有什么优缺点？",
+    try {
+      const context: ChatMessagePayload[] = [
+        {
+          role: "system",
+          content: `你是一位专业的 ${position} 面试官，面试难度为${difficulties[difficulty].label}。请根据候选人的回答进行追问，深入考察技术深度和项目经验。每次回复都要提出下一个问题，保持面试节奏。`,
+        },
+        ...messages.slice(-8).map((m) => ({
+          role: (m.role === "ai" ? "assistant" : "user") as string,
+          content: m.content,
+        })),
+      ];
+
+      const result = await sendChatMessage(input, context);
+      const aiReply: InterviewMessage = {
+        role: "ai",
+        content: result.reply || "请继续回答，或者告诉我你想换一个话题。",
         time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, aiReply]);
-    }, 1200);
+    } catch (e) {
+      const errMsg = toErrorMessage(e, "对话失败");
+      setError(errMsg);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          content: `抱歉，出了点问题：${errMsg}`,
+          time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
   const finishInterview = () => {
@@ -116,8 +152,8 @@ export default function AIInterviewerPage() {
       <div>
         <PageHero
           kicker="AI 面试官"
-          title="模拟面试（演示版）"
-          description="选择岗位和难度，体验 AI 面试官模拟流程。注意：当前为前端演示，尚未接入真实面试对话链路。"
+          title="模拟面试"
+          description="选择岗位和难度，AI 面试官将根据你的回答实时追问，模拟真实面试场景。"
         />
 
         <div className="panel">
@@ -158,16 +194,25 @@ export default function AIInterviewerPage() {
             </div>
           </div>
 
+          {error && (
+            <p className="text-sm text-[var(--red)] mb-4">{error}</p>
+          )}
+
           {activeSession && (
             <button type="button" className="btn btn-ghost wide" onClick={resumeLastSession}>
               <History size={16} />
               恢复上次会话 ({activeSession.position} · L{activeSession.difficulty})
             </button>
           )}
-          <button type="button" className="btn btn-accent wide" onClick={startInterview}>
-            <MessageSquare size={16} />
-            进入演示
-            <ArrowRight size={14} />
+          <button
+            type="button"
+            className="btn btn-accent wide"
+            onClick={startInterview}
+            disabled={starting}
+          >
+            {starting ? <Loader2 size={16} className="animate-spin" /> : <MessageSquare size={16} />}
+            {starting ? "创建会话中..." : "开始面试"}
+            {!starting && <ArrowRight size={14} />}
           </button>
         </div>
       </div>
@@ -193,31 +238,12 @@ export default function AIInterviewerPage() {
             <div className="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[var(--blue-soft)] to-[var(--cyan-soft)]">
               <Star size={32} className="text-[var(--blue)]" />
             </div>
-            <h2 className="text-3xl font-bold text-[var(--ink)]">81.25</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">综合评分</p>
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            {scores.map((s) => {
-              const Icon = s.icon;
-              return (
-                <div key={s.label} className="rounded-xl bg-[var(--surface-soft)] p-4">
-                  <div className="flex items-center gap-2">
-                    <Icon size={16} className="text-[var(--blue)]" />
-                    <span className="text-sm font-medium">{s.label}</span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--border)]">
-                    <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-[var(--blue)] to-[var(--cyan)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${s.score}%` }}
-                      transition={{ duration: 1, delay: 0.3 }}
-                    />
-                  </div>
-                  <p className="mt-2 text-right text-sm font-bold">{s.score}</p>
-                </div>
-              );
-            })}
+            <h2 className="text-3xl font-bold text-[var(--ink)]">
+              {messages.length > 2 ? "面试已完成" : "面试已结束"}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              共 {messages.filter((m) => m.role === "user").length} 轮对话
+            </p>
           </div>
 
           <div className="mt-6 rounded-xl bg-[var(--surface-soft)] p-4">
@@ -229,17 +255,17 @@ export default function AIInterviewerPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--blue)]" />
-                对 Redis 持久化机制的理解可以更深入
+                回答时注意结构化表达，先总后分
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--blue)]" />
-                表达清晰，但语速可以适当放慢
+                对核心概念的理解可以更深入
               </li>
             </ul>
           </div>
 
           <div className="mt-6 flex justify-center gap-3">
-            <button type="button" className="btn btn-accent" onClick={startInterview}>
+            <button type="button" className="btn btn-accent" onClick={() => { setStarted(false); setFinished(false); }}>
               <RotateCcw size={14} />
               再来一次
             </button>
@@ -264,7 +290,7 @@ export default function AIInterviewerPage() {
       <PageHero
         kicker="模拟面试中"
         title={position + " 面试"}
-        description={`${difficulties[difficulty].label} · 已进行 ${messages.length} 轮对话`}
+        description={`${difficulties[difficulty].label} · 已进行 ${messages.filter((m) => m.role === "user").length} 轮对话`}
       />
 
       <div className="panel chat-panel">
@@ -276,14 +302,10 @@ export default function AIInterviewerPage() {
             </p>
             <p className="chat-subtitle">{position} · {difficulties[difficulty].label}</p>
           </div>
-          <span className="badge warning" title="后端尚未接入真实面试对话，当前为模拟演示">
-            <AlertTriangle size={11} />
-            模拟演示
-          </span>
           <div className="flex items-center gap-3">
             <p className="chat-timer">
               <Clock size={14} />
-              15:00
+              {messages.filter((m) => m.role === "user").length} 轮
             </p>
             <button type="button" className="btn btn-ghost icon-btn" onClick={finishInterview} title="结束面试">
               <Award size={16} />
@@ -308,6 +330,18 @@ export default function AIInterviewerPage() {
               <p>{msg.content}</p>
             </motion.div>
           ))}
+          {sending && (
+            <div className="chat-bubble ai">
+              <div className="bubble-head">
+                <Bot size={14} />
+                AI 面试官
+              </div>
+              <div className="flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-sm text-[var(--muted)]">思考追问中...</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="chat-input-row">
@@ -318,14 +352,15 @@ export default function AIInterviewerPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            disabled={sending}
           />
           <button
             type="button"
             className="btn btn-accent icon-btn"
             onClick={sendMessage}
-            disabled={!input.trim()}
+            disabled={!input.trim() || sending}
           >
-            <Send size={16} />
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
       </div>

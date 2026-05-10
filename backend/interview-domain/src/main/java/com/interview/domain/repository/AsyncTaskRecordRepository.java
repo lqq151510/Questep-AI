@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface AsyncTaskRecordRepository {
 
-    AsyncTaskRecord create(String taskNo, String taskType, Long bizId, Long createdBy);
+    AsyncTaskRecord create(String taskNo, String taskType, String bizType, Long bizId, Long createdBy);
 
     Optional<AsyncTaskRecord> findByTaskNo(String taskNo);
 

@@ -59,6 +59,7 @@ class MaterialApplicationServiceTest {
                 1L,
                 "PARSE-123456",
                 "MATERIAL_PARSE",
+                "MATERIAL_PARSE",
                 1L,
                 "PENDING",
                 0,
@@ -85,6 +86,7 @@ class MaterialApplicationServiceTest {
         when(asyncTaskRecordRepository.create(
                 anyString(),
                 eq("MATERIAL_PARSE"),
+                eq("MATERIAL_PARSE"),
                 eq(testMaterial.id()),
                 eq(testUserId)
         )).thenReturn(testTask);
@@ -100,7 +102,7 @@ class MaterialApplicationServiceTest {
         assertEquals(testTask.id(), result.task().id());
         verify(materialRepository, times(1)).save(testUserId, name, fileType, storagePath);
         verify(asyncTaskRecordRepository, times(1)).create(
-                anyString(), eq("MATERIAL_PARSE"), eq(testMaterial.id()), eq(testUserId)
+                anyString(), eq("MATERIAL_PARSE"), eq("MATERIAL_PARSE"), eq(testMaterial.id()), eq(testUserId)
         );
     }
 

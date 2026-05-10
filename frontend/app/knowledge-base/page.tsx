@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
   Upload,
@@ -11,6 +11,7 @@ import {
   Search,
   RefreshCw,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,16 +24,17 @@ export default function KnowledgeBasePage() {
     apiState,
     uploadMaterial,
     refreshMaterials,
+    deleteMaterial,
   } = useDashboardStore();
 
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     refreshMaterials();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshMaterials]);
 
   const filtered = materials.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase())
@@ -49,6 +51,16 @@ export default function KnowledgeBasePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`确定要删除「${name}」吗？此操作不可撤销。`)) return;
+    setDeletingId(id);
+    try {
+      await deleteMaterial(id);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const statusLabel = (status: string) => {
     if (status === "ready") return "已解析";
     if (status === "parsing") return "解析中";
@@ -63,7 +75,6 @@ export default function KnowledgeBasePage() {
         description="上传学习资料，AI 自动解析并生成结构化知识，随时检索复习。"
       />
 
-      {/* Upload Area */}
       <div
         className={`upload-area ${dragOver ? "border-[var(--blue)] bg-[var(--blue-soft)]" : ""}`}
         onDragOver={(e) => {
@@ -89,7 +100,6 @@ export default function KnowledgeBasePage() {
         />
       </div>
 
-      {/* Search */}
       <div className="search-row">
         <h2>我的资料</h2>
         <div className="search-input-wrap">
@@ -103,7 +113,6 @@ export default function KnowledgeBasePage() {
         </div>
       </div>
 
-      {/* Loading */}
       {apiState === "syncing" && filtered.length === 0 && (
         <div className="material-grid">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -116,7 +125,6 @@ export default function KnowledgeBasePage() {
         </div>
       )}
 
-      {/* Materials Grid */}
       {apiState !== "syncing" && filtered.length === 0 && (
         <EmptyState
           icon={BookOpen}
@@ -128,43 +136,61 @@ export default function KnowledgeBasePage() {
 
       {filtered.length > 0 && (
         <div className="material-grid">
-          {filtered.map((m, i) => (
-            <motion.div
-              key={m.id}
-              className="material-card"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06, duration: 0.4 }}
-            >
-              <div className="material-head">
-                <FileText size={20} className="text-[var(--blue)]" />
-                <button
-                  type="button"
-                  className="btn btn-ghost icon-btn"
-                  onClick={() => refreshMaterials()}
-                  title="刷新"
-                >
-                  <RefreshCw size={14} />
-                </button>
-              </div>
-              <h3 className="truncate">{m.name}</h3>
-              <p className="meta-text">
-                {m.type} · {m.updatedAt}
-              </p>
-              <div className="tag-row">
-                <span className={`badge ${m.status === "ready" ? "success" : m.status === "failed" ? "danger" : "warning"}`}>
-                  {m.status === "ready" ? (
-                    <CheckCircle size={12} />
-                  ) : m.status === "failed" ? (
-                    <AlertTriangle size={12} />
-                  ) : (
-                    <Loader2 size={12} className="animate-spin" />
-                  )}
-                  {statusLabel(m.status)}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+          <AnimatePresence mode="popLayout">
+            {filtered.map((m, i) => (
+              <motion.div
+                key={m.id}
+                className="material-card"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: i * 0.06, duration: 0.4 }}
+              >
+                <div className="material-head">
+                  <FileText size={20} className="text-[var(--blue)]" />
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="btn btn-ghost icon-btn"
+                      onClick={() => refreshMaterials()}
+                      title="刷新"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost icon-btn text-[var(--red)] hover:bg-[var(--red-soft)]"
+                      onClick={() => handleDelete(m.id, m.name)}
+                      disabled={deletingId === m.id}
+                      title="删除资料"
+                    >
+                      {deletingId === m.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <h3 className="truncate">{m.name}</h3>
+                <p className="meta-text">
+                  {m.type} · {m.updatedAt}
+                </p>
+                <div className="tag-row">
+                  <span className={`badge ${m.status === "ready" ? "success" : m.status === "failed" ? "danger" : "warning"}`}>
+                    {m.status === "ready" ? (
+                      <CheckCircle size={12} />
+                    ) : m.status === "failed" ? (
+                      <AlertTriangle size={12} />
+                    ) : (
+                      <Loader2 size={12} className="animate-spin" />
+                    )}
+                    {statusLabel(m.status)}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>

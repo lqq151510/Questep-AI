@@ -4,7 +4,8 @@ import {
   ClipboardList,
   Database,
   Gauge,
-  Mic2
+  Mic2,
+  Settings
 } from "lucide-react";
 
 import type { KnowledgeItem, MaterialItem, NavItem, TaskItem } from "@/types/dashboard";
@@ -78,7 +79,8 @@ export const navItems: NavItem[] = [
   { label: "刷题", icon: ClipboardList, href: "/question-bank", active: false },
   { label: "面试", icon: Mic2, href: "/ai-interviewer", active: false },
   { label: "错题本", icon: BookOpenCheck, href: "/wrong-answers", active: false },
-  { label: "诊断", icon: BarChart3, href: "/ai-qa", active: false }
+  { label: "诊断", icon: BarChart3, href: "/ai-qa", active: false },
+  { label: "设置", icon: Settings, href: "/settings", active: false }
 ];
 
 export const knowledge: KnowledgeItem[] = [

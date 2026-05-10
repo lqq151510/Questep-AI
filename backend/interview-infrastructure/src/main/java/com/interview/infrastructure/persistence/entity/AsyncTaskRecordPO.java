@@ -6,6 +6,7 @@ public class AsyncTaskRecordPO {
     private Long id;
     private String taskNo;
     private String taskType;
+    private String bizType;
     private Long bizId;
     private String status;
     private Integer progress;
@@ -25,6 +26,8 @@ public class AsyncTaskRecordPO {
     public void setTaskNo(String taskNo) { this.taskNo = taskNo; }
     public String getTaskType() { return taskType; }
     public void setTaskType(String taskType) { this.taskType = taskType; }
+    public String getBizType() { return bizType; }
+    public void setBizType(String bizType) { this.bizType = bizType; }
     public Long getBizId() { return bizId; }
     public void setBizId(Long bizId) { this.bizId = bizId; }
     public String getStatus() { return status; }

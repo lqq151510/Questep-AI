@@ -50,6 +50,20 @@ public class MaterialRepositoryImpl implements MaterialRepository {
     }
 
     @Override
+    public Optional<Material> findByIdAndUserId(Long id, Long userId) {
+        MaterialPO condition = new MaterialPO();
+        condition.setId(id);
+        condition.setUserId(userId);
+        List<Material> results = materialMapper.selectByCondition(condition);
+        return results.stream().findFirst();
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        materialMapper.deleteById(id);
+    }
+
+    @Override
     public void markParseSuccess(Long id, String contentHash, String analysisText) {
         materialMapper.updateParseSuccess(id, contentHash, analysisText);
     }

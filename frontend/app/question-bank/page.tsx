@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ClipboardList,
@@ -39,16 +39,16 @@ export default function QuestionBankPage() {
   const [page, setPage] = useState(0);
   const [pageSize] = useState(20);
 
-  const fetchQuestions = () => {
+  const fetchQuestions = useCallback(() => {
     setLoading(true);
     setError("");
     listQuestions(page, pageSize)
       .then(setQuestions)
       .catch((e) => setError(toErrorMessage(e, "获取题库失败")))
       .finally(() => setLoading(false));
-  };
+  }, [page, pageSize]);
 
-  useEffect(() => { fetchQuestions(); }, [page]);
+  useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
   const filtered = questions.filter((q) => {
     const matchDiff = difficulty === "全部" || String(q.difficulty ?? "") === difficulty;

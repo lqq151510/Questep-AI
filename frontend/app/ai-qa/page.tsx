@@ -7,8 +7,14 @@ import {
   Bot,
   User,
   Lightbulb,
+  Loader2,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import {
+  sendChatMessage,
+  type ChatMessagePayload,
+  toErrorMessage,
+} from "@/lib/interview-api";
 
 const quickQuestions = [
   "Java 中 volatile 关键字的作用是什么？",
@@ -23,30 +29,44 @@ type Message = {
   content: string;
 };
 
-const mockMessages: Message[] = [
-  {
-    role: "ai",
-    content: "你好！我是你的 AI 面试助手。有任何技术问题都可以问我，我会为你提供详细的解答和面试建议。",
-  },
-];
-
 export default function AIQAPage() {
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "ai",
+      content: "你好！我是你的 AI 面试助手。有任何技术问题都可以问我，我会为你提供详细的解答和面试建议。",
+    },
+  ]);
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
 
-  const sendMessage = (text: string) => {
-    if (!text.trim()) return;
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || sending) return;
     const userMsg = { role: "user" as const, content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setSending(true);
 
-    setTimeout(() => {
+    try {
+      const context: ChatMessagePayload[] = messages.slice(-6).map((m) => ({
+        role: m.role === "ai" ? "assistant" : "user",
+        content: m.content,
+      }));
+
+      const result = await sendChatMessage(text, context);
       const aiReply = {
         role: "ai" as const,
-        content: `这是一个很好的问题！关于「${text}」，我来为你详细解答：\n\n1. **核心概念**：首先需要理解其基本原理...\n2. **实际应用**：在实际项目中，通常会...\n3. **面试要点**：回答这个问题时，建议从以下几个方面展开...\n\n希望这个解答对你有帮助！如果还有疑问，可以继续提问。`,
+        content: result.reply || "抱歉，AI 暂时无法回答，请稍后重试。",
       };
       setMessages((prev) => [...prev, aiReply]);
-    }, 1500);
+    } catch (e) {
+      const errMsg = toErrorMessage(e, "对话失败，请稍后重试");
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: `抱歉，出了点问题：${errMsg}` },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -84,10 +104,21 @@ export default function AIQAPage() {
               <p className="whitespace-pre-wrap">{msg.content}</p>
             </motion.div>
           ))}
+          {sending && (
+            <div className="chat-bubble ai">
+              <div className="bubble-head">
+                <Bot size={14} />
+                AI 助手
+              </div>
+              <div className="flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" />
+                <span className="text-sm text-[var(--muted)]">思考中...</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Quick Questions */}
-        {messages.length <= 2 && (
+        {messages.length <= 2 && !sending && (
           <div className="mb-4">
             <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
               <Lightbulb size={12} />
@@ -100,6 +131,7 @@ export default function AIQAPage() {
                   type="button"
                   className="tag hover:border-[var(--blue)] hover:text-[var(--blue)]"
                   onClick={() => sendMessage(q)}
+                  disabled={sending}
                 >
                   {q}
                 </button>
@@ -116,14 +148,15 @@ export default function AIQAPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage(input)}
+            disabled={sending}
           />
           <button
             type="button"
             className="btn btn-accent icon-btn"
             onClick={() => sendMessage(input)}
-            disabled={!input.trim()}
+            disabled={!input.trim() || sending}
           >
-            <Send size={16} />
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
       </div>

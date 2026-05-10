@@ -6,6 +6,7 @@
             <idArg column="id" javaType="java.lang.Long"/>
             <arg column="task_no" javaType="java.lang.String"/>
             <arg column="task_type" javaType="java.lang.String"/>
+            <arg column="biz_type" javaType="java.lang.String"/>
             <arg column="biz_id" javaType="java.lang.Long"/>
             <arg column="status" javaType="java.lang.String"/>
             <arg column="progress" javaType="java.lang.Integer"/>
@@ -21,12 +22,13 @@
         </constructor>
     </resultMap>
 
-    <sql id="taskColumns">id,task_no,task_type,biz_id,status,progress,error_msg,created_by,started_at,finished_at,created_at,updated_at,error_code,stage,retryable</sql>
+    <sql id="taskColumns">id,task_no,task_type,biz_type,biz_id,status,progress,error_msg,created_by,started_at,finished_at,created_at,updated_at,error_code,stage,retryable</sql>
 
     <sql id="taskInsertColumns">
         <trim suffixOverrides=",">
             task_no,
             task_type,
+            <if test="bizType != null">biz_type,</if>
             biz_id,
             <if test="status != null">status,</if>
             <if test="progress != null">progress,</if>
@@ -38,6 +40,7 @@
         <trim suffixOverrides=",">
             #{taskNo},
             #{taskType},
+            <if test="bizType != null">#{bizType},</if>
             #{bizId},
             <if test="status != null">#{status},</if>
             <if test="progress != null">#{progress},</if>

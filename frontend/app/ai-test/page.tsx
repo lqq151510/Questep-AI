@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BrainCircuit,
@@ -11,9 +11,15 @@ import {
   Trophy,
   Target,
   TrendingUp,
-  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import {
+  generateQuiz,
+  listMaterials,
+  type BackendMaterial,
+  toErrorMessage,
+} from "@/lib/interview-api";
 
 const directions = [
   "Java",
@@ -26,29 +32,25 @@ const directions = [
   "操作系统",
 ];
 
-const questions = [
-  {
-    id: 1,
-    type: "单选题",
-    question: "Java 中 HashMap 的底层数据结构是什么？",
-    options: ["数组", "链表", "数组 + 链表", "红黑树"],
-    correct: 2,
-  },
-  {
-    id: 2,
-    type: "单选题",
-    question: "以下哪个不是 Java 的访问修饰符？",
-    options: ["public", "private", "protected", "internal"],
-    correct: 3,
-  },
-  {
-    id: 3,
-    type: "单选题",
-    question: "Spring Boot 的自动配置原理主要基于哪个注解？",
-    options: ["@Component", "@Autowired", "@EnableAutoConfiguration", "@Configuration"],
-    correct: 2,
-  },
-];
+const directionToQuestionType: Record<string, string> = {
+  "Java": "choice",
+  "前端": "choice",
+  "Go": "choice",
+  "算法": "coding",
+  "数据库": "short",
+  "系统设计": "interview",
+  "网络": "choice",
+  "操作系统": "short",
+};
+
+type QuizQuestion = {
+  id: number;
+  type: string;
+  question: string;
+  options: string[];
+  correct: number;
+  referenceAnswer?: string;
+};
 
 export default function AITestPage() {
   const [direction, setDirection] = useState("Java");
@@ -58,13 +60,72 @@ export default function AITestPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [finished, setFinished] = useState(false);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [materials, setMaterials] = useState<BackendMaterial[]>([]);
 
-  const startTest = () => {
-    setStarted(true);
-    setCurrentQ(0);
-    setSelected(null);
-    setAnswers([]);
-    setFinished(false);
+  useEffect(() => {
+    listMaterials().then((mats) => {
+      const ready = mats.filter((m) => m.parseStatus === "SUCCESS");
+      setMaterials(ready);
+    }).catch(() => {});
+  }, []);
+
+  const startTest = async () => {
+    if (materials.length === 0) {
+      setError("请先上传并等待资料解析完成后再开始测试");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const result = await generateQuiz({
+        materialIds: materials.slice(0, 3).map((m) => m.id),
+        questionType: (directionToQuestionType[direction] || "choice") as "choice" | "short" | "code" | "interview",
+        difficulty,
+        count: 5,
+        interviewMode: false,
+      });
+
+      const quizQuestions: QuizQuestion[] = (result.questions || []).map((q, idx) => {
+        let options: string[] = [];
+        const correct = 0;
+        if (q.optionsJson && typeof q.optionsJson === "object") {
+          const opts = q.optionsJson as Record<string, string>;
+          options = Object.values(opts);
+        } else if (q.referenceAnswer) {
+          options = [q.referenceAnswer, "选项 B", "选项 C", "选项 D"];
+        } else {
+          options = ["A", "B", "C", "D"];
+        }
+
+        return {
+          id: q.id || idx,
+          type: q.questionType || "SINGLE_CHOICE",
+          question: q.stemText,
+          options,
+          correct,
+          referenceAnswer: q.referenceAnswer || undefined,
+        };
+      });
+
+      if (quizQuestions.length === 0) {
+        setError("AI 未能生成题目，请稍后重试");
+        return;
+      }
+
+      setQuestions(quizQuestions);
+      setStarted(true);
+      setCurrentQ(0);
+      setSelected(null);
+      setAnswers([]);
+      setFinished(false);
+    } catch (e) {
+      setError(toErrorMessage(e, "生成题目失败，请稍后重试"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const selectOption = (idx: number) => {
@@ -83,23 +144,19 @@ export default function AITestPage() {
     }, 800);
   };
 
-  const correctCount = answers.filter((a, i) => a === questions[i].correct).length;
-  const progress = ((currentQ + (selected !== null ? 1 : 0)) / questions.length) * 100;
+  const correctCount = answers.filter((a, i) => a === questions[i]?.correct).length;
+  const progress = questions.length > 0
+    ? ((currentQ + (selected !== null ? 1 : 0)) / questions.length) * 100
+    : 0;
 
   if (!started) {
     return (
       <div>
         <PageHero
           kicker="AI 测试"
-          title="智能技术测试（演示版）"
-          description="选择技术方向和难度，体验 AI 出题流程。注意：当前为前端演示，题目为固定示例，尚未接入真实 AI 出题链路。"
+          title="智能技术测试"
+          description="选择技术方向和难度，AI 将根据你的知识库生成个性化测试题。"
         />
-        <div className="panel">
-          <span className="badge warning" title="后端尚未接入真实 AI 出题，当前为模拟演示">
-            <AlertTriangle size={11} />
-            模拟演示
-          </span>
-        </div>
 
         <div className="panel">
           <div className="field-group">
@@ -132,10 +189,29 @@ export default function AITestPage() {
             </div>
           </div>
 
-          <button type="button" className="btn btn-accent wide" onClick={startTest}>
-            <BrainCircuit size={16} />
-            进入演示
-            <ArrowRight size={14} />
+          {materials.length === 0 && (
+            <p className="text-sm text-[var(--muted)] mb-4">
+              请先在知识库上传资料并等待解析完成，AI 将基于你的资料生成题目。
+            </p>
+          )}
+
+          {error && (
+            <p className="text-sm text-[var(--red)] mb-4">{error}</p>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-accent wide"
+            onClick={startTest}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <BrainCircuit size={16} />
+            )}
+            {loading ? "AI 出题中..." : "开始测试"}
+            {!loading && <ArrowRight size={14} />}
           </button>
         </div>
       </div>
@@ -186,7 +262,7 @@ export default function AITestPage() {
           </div>
 
           <div className="mt-6 flex justify-center gap-3">
-            <button type="button" className="btn btn-accent" onClick={startTest}>
+            <button type="button" className="btn btn-accent" onClick={() => { setStarted(false); setFinished(false); }}>
               <RotateCcw size={14} />
               重新测试
             </button>
@@ -213,27 +289,25 @@ export default function AITestPage() {
       <PageHero
         kicker={`第 ${currentQ + 1} / ${questions.length} 题`}
         title={direction + " 测试"}
-        description={`难度 ${difficulty} · ${q.type}`}
+        description={`难度 ${difficulty} · ${q?.type || ""}`}
       />
 
-      {/* Progress */}
       <div className="progress-track">
         <div className="progress-fill" style={{ width: `${progress}%` }} />
       </div>
 
-      {/* Question */}
       <motion.div
-        key={q.id}
+        key={q?.id}
         className="panel"
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <p className="question-type">{q.type}</p>
-        <h3 className="mt-2 text-lg font-semibold">{q.question}</h3>
+        <p className="question-type">{q?.type}</p>
+        <h3 className="mt-2 text-lg font-semibold">{q?.question}</h3>
 
         <div className="option-list">
-          {q.options.map((opt, idx) => {
+          {q?.options.map((opt, idx) => {
             const isSelected = selected === idx;
             const isCorrect = idx === q.correct;
             const showResult = selected !== null;

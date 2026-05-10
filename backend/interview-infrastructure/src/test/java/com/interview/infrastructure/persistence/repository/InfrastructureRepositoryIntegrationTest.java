@@ -109,7 +109,7 @@ class InfrastructureRepositoryIntegrationTest {
     @Test
     void asyncTaskRecordRepositoryShouldSupportStatusUpdates() {
         User user = userRepository.save("charlie", "charlie@example.com", "pwd_hash");
-        AsyncTaskRecord created = asyncTaskRecordRepository.create("TASK-001", "MATERIAL_PARSE", 101L, user.id());
+        AsyncTaskRecord created = asyncTaskRecordRepository.create("TASK-001", "MATERIAL_PARSE", "MATERIAL_PARSE", 101L, user.id());
 
         assertEquals("PENDING", created.status());
         assertEquals(0, created.progress());

@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,6 +68,12 @@ public class MaterialController {
     @PostMapping("/{id}/retry-parse")
     public ApiResponse<UploadMaterialResult> retryParse(@PathVariable Long id) {
         return ApiResponse.ok(materialApplicationService.retryParseTask(CurrentUser.id(), id));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        materialApplicationService.delete(CurrentUser.id(), id);
+        return ApiResponse.ok(null);
     }
 
     private String sanitizeFilename(String filename) {

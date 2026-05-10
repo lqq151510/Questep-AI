@@ -6,6 +6,7 @@ public record AsyncTaskRecord(
         Long id,
         String taskNo,
         String taskType,
+        String bizType,
         Long bizId,
         String status,
         Integer progress,

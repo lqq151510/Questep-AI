@@ -9,6 +9,8 @@ public final class TaskConstants {
     public static final String STATUS_FAILED = "FAILED";
 
     public static final String TYPE_MATERIAL_PARSE = "MATERIAL_PARSE";
+    public static final String BIZ_TYPE_MATERIAL_PARSE = "MATERIAL_PARSE";
+    public static final String BIZ_TYPE_QUIZ_GEN = "QUIZ_GEN";
     public static final String TASK_NO_PREFIX = "PARSE-";
 
     public static final String SOURCE_TYPE_AI = "AI";

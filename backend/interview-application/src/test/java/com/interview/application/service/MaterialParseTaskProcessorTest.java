@@ -90,6 +90,7 @@ class MaterialParseTaskProcessorTest {
                 id,
                 "PARSE-" + id,
                 TaskConstants.TYPE_MATERIAL_PARSE,
+                TaskConstants.BIZ_TYPE_MATERIAL_PARSE,
                 bizId,
                 TaskConstants.STATUS_PENDING,
                 0,

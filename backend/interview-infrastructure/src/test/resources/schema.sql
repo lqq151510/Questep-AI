@@ -29,6 +29,7 @@ CREATE TABLE async_task_records (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   task_no VARCHAR(64) NOT NULL UNIQUE,
   task_type VARCHAR(64) NOT NULL,
+  biz_type VARCHAR(64),
   biz_id BIGINT,
   status VARCHAR(32) NOT NULL,
   progress INT,

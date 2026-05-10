@@ -1,9 +1,10 @@
 import { create } from "zustand";
 
-import { initialDraftQuestions, seedMaterials, seedTasks } from "@/lib/dashboard-data";
+import { initialDraftQuestions } from "@/lib/dashboard-data";
 import { createLocalMaterial, mapRemoteMaterial, modeText, nowLabel } from "@/lib/dashboard-format";
 import {
   clearAuthTokens,
+  deleteMaterial as requestDeleteMaterial,
   fetchCaptcha as requestCaptcha,
   generateQuiz as requestGenerateQuiz,
   getAsyncTask,
@@ -60,6 +61,7 @@ type DashboardState = {
   toggleMaterial: (id: string) => void;
   uploadMaterial: (file: File) => Promise<void>;
   refreshMaterials: () => Promise<void>;
+  deleteMaterial: (materialId: string) => Promise<void>;
   generateQuestions: () => Promise<void>;
   retryParseMaterial: (materialId: number) => Promise<void>;
 };
@@ -121,9 +123,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   },
 
   // quiz
-  materials: seedMaterials,
-  tasks: seedTasks,
-  selectedMaterialIds: ["mat-java", "mat-spring"],
+  materials: [],
+  tasks: [],
+  selectedMaterialIds: [],
   materialFilter: "all",
   questionMode: "choice",
   difficulty: 3,
@@ -228,6 +230,32 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       }
     } catch {
       set({ apiState: "offline" });
+    }
+  },
+  deleteMaterial: async (materialId) => {
+    const numericId = Number(materialId);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      set((state) => ({
+        materials: state.materials.filter((item) => item.id !== materialId),
+        selectedMaterialIds: state.selectedMaterialIds.filter((id) => id !== materialId)
+      }));
+      return;
+    }
+    try {
+      await requestDeleteMaterial(numericId);
+      set((state) => ({
+        materials: state.materials.filter((item) => item.id !== materialId),
+        selectedMaterialIds: state.selectedMaterialIds.filter((id) => id !== materialId),
+        apiState: "online"
+      }));
+    } catch (error) {
+      const detail = toErrorMessage(error, "删除资料失败");
+      set((state) => ({
+        apiState: "offline",
+        materials: state.materials.map((item) =>
+          item.id === materialId ? { ...item, detail } : item
+        )
+      }));
     }
   },
   generateQuestions: async () => {
