@@ -1,6 +1,7 @@
 package com.interview.application.service;
 
 import com.interview.application.dto.UploadMaterialResult;
+import com.interview.application.port.AsyncTaskDispatcher;
 import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,6 +31,9 @@ class MaterialApplicationServiceTest {
 
     @Mock
     private AsyncTaskRecordRepository asyncTaskRecordRepository;
+
+    @Mock
+    private AsyncTaskDispatcher asyncTaskDispatcher;
 
     @InjectMocks
     private MaterialApplicationService materialApplicationService;
@@ -104,6 +109,28 @@ class MaterialApplicationServiceTest {
         verify(asyncTaskRecordRepository, times(1)).create(
                 anyString(), eq("MATERIAL_PARSE"), eq("MATERIAL_PARSE"), eq(testMaterial.id()), eq(testUserId)
         );
+        verify(asyncTaskDispatcher, times(1)).dispatchMaterialParseTask(testTask.taskNo());
+    }
+
+    @Test
+    @DisplayName("Test retry parse task recreates async task and dispatches it")
+    void testRetryParseTaskSuccess() {
+        when(materialRepository.findByIdAndUserId(testMaterial.id(), testUserId)).thenReturn(Optional.of(testMaterial));
+        when(asyncTaskRecordRepository.create(
+                anyString(),
+                eq("MATERIAL_PARSE"),
+                eq("MATERIAL_PARSE"),
+                eq(testMaterial.id()),
+                eq(testUserId)
+        )).thenReturn(testTask);
+
+        UploadMaterialResult result = materialApplicationService.retryParseTask(testUserId, testMaterial.id());
+
+        assertNotNull(result);
+        assertEquals(testMaterial.id(), result.material().id());
+        assertEquals(testTask.taskNo(), result.task().taskNo());
+        verify(materialRepository, times(1)).markParsePending(testMaterial.id());
+        verify(asyncTaskDispatcher, times(1)).dispatchMaterialParseTask(testTask.taskNo());
     }
 
     @Test

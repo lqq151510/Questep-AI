@@ -17,6 +17,8 @@ public interface QuestionMapper {
 
     List<Question> selectRecentByUser(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
 
+    int countFreshApprovedByUser(@Param("userId") Long userId, @Param("now") LocalDateTime now);
+
     List<Question> selectByCondition(QuestionPO condition);
 
     List<Question> selectByIds(@Param("ids") List<Long> ids);

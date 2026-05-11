@@ -40,6 +40,9 @@ class MaterialParseTaskProcessorTest {
     @Mock
     private LlmGateway llmGateway;
 
+    @Mock
+    private MaterialRagApplicationService materialRagApplicationService;
+
     @InjectMocks
     private MaterialParseTaskProcessor materialParseTaskProcessor;
 

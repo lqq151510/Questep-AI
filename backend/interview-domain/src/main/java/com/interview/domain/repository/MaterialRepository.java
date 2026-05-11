@@ -13,6 +13,10 @@ public interface MaterialRepository {
 
     List<Material> findByUserId(Long userId);
 
+    List<Long> findUsersWithParsedMaterials(int limit);
+
+    List<Material> findParsedMaterialsByUser(Long userId, int limit);
+
     Optional<Material> findById(Long id);
 
     Optional<Material> findByIdAndUserId(Long id, Long userId);

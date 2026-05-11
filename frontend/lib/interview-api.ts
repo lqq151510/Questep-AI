@@ -102,6 +102,16 @@ export type GenerateQuizResult = {
   warnings?: string[];
 };
 
+export type DashboardMetrics = {
+  completedTests: number;
+  mockInterviews: number;
+  masteredPoints: number;
+  pendingWrongReviews: number;
+  parsedMaterials: number;
+  recentInterviewQuestions: number;
+  activeInterviewSessions: number;
+};
+
 let refreshPromise: Promise<boolean> | null = null;
 
 function readAccessToken(): string | null {
@@ -109,6 +119,10 @@ function readAccessToken(): string | null {
     return null;
   }
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getAccessToken(): string | null {
+  return readAccessToken();
 }
 
 function readRefreshToken(): string | null {
@@ -142,6 +156,26 @@ export function clearAuthTokens(): void {
   }
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function buildInterviewWebSocketUrl(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const explicitWs = process.env.NEXT_PUBLIC_BACKEND_WS_URL?.trim();
+  const explicitApi = process.env.NEXT_PUBLIC_BACKEND_API_URL?.trim();
+  let base = explicitWs;
+
+  if (!base) {
+    const fallbackHttp = explicitApi || "http://127.0.0.1:8080";
+    base = fallbackHttp.replace(/^http/i, "ws");
+  }
+
+  const normalizedBase = base.replace(/\/$/, "");
+  const token = readAccessToken();
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${normalizedBase}/ws/interview${tokenParam}`;
 }
 
 function withAuthorization(options: RequestInit = {}): RequestInit {
@@ -277,6 +311,48 @@ export async function listQuestions(page = 0, pageSize = 20): Promise<BackendQue
     { cache: "no-store" }
   );
   return unwrap<BackendQuestion[]>(response, "获取题库失败");
+}
+
+function isParseSuccess(status?: string): boolean {
+  const normalized = String(status ?? "").toUpperCase();
+  return normalized === "SUCCESS" || normalized === "DONE" || normalized === "READY";
+}
+
+function isMasteredStatus(status?: string): boolean {
+  const normalized = String(status ?? "").toUpperCase();
+  return normalized === "MASTERED" || normalized === "DONE" || normalized === "COMPLETE";
+}
+
+export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
+  const [questionsResult, materialsResult, wrongBooksResult, activeSessionResult] = await Promise.allSettled([
+    listQuestions(0, 50),
+    listMaterials(),
+    listWrongBooks(),
+    getActiveSession()
+  ]);
+
+  const questions = questionsResult.status === "fulfilled" ? questionsResult.value : [];
+  const materials = materialsResult.status === "fulfilled" ? materialsResult.value : [];
+  const wrongBooks = wrongBooksResult.status === "fulfilled" ? wrongBooksResult.value : [];
+  const activeSession = activeSessionResult.status === "fulfilled" ? activeSessionResult.value : null;
+
+  const recentInterviewQuestions = questions.filter((question) =>
+    String(question.questionType ?? "").toLowerCase().includes("interview")
+  ).length;
+  const parsedMaterials = materials.filter((material) => isParseSuccess(material.parseStatus)).length;
+  const masteredPoints = wrongBooks.filter((item) => isMasteredStatus(item.masteryStatus)).length;
+  const pendingWrongReviews = Math.max(wrongBooks.length - masteredPoints, 0);
+  const activeInterviewSessions = activeSession ? 1 : 0;
+
+  return {
+    completedTests: questions.length,
+    mockInterviews: recentInterviewQuestions + activeInterviewSessions,
+    masteredPoints,
+    pendingWrongReviews,
+    parsedMaterials,
+    recentInterviewQuestions,
+    activeInterviewSessions
+  };
 }
 
 export async function generateQuiz(payload: GenerateQuizPayload): Promise<GenerateQuizResult> {

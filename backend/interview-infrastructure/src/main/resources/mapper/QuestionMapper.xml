@@ -147,6 +147,16 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="countFreshApprovedByUser" resultType="int">
+        SELECT COUNT(1)
+        FROM questions
+        WHERE creator_user_id = #{userId}
+          AND status = 1
+          AND review_status = 'APPROVED'
+          AND confidence_score >= 0.700
+          AND (expires_at IS NULL OR expires_at > #{now})
+    </select>
+
     <select id="selectByCondition" resultMap="questionMap">
         SELECT <include refid="questionColumns"/>
         FROM questions

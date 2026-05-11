@@ -27,15 +27,18 @@ public class MaterialParseTaskProcessor {
     private final AsyncTaskRecordRepository asyncTaskRecordRepository;
     private final MaterialRepository materialRepository;
     private final LlmGateway llmGateway;
+    private final MaterialRagApplicationService materialRagApplicationService;
 
     public MaterialParseTaskProcessor(
             AsyncTaskRecordRepository asyncTaskRecordRepository,
             MaterialRepository materialRepository,
-            LlmGateway llmGateway
+            LlmGateway llmGateway,
+            MaterialRagApplicationService materialRagApplicationService
     ) {
         this.asyncTaskRecordRepository = asyncTaskRecordRepository;
         this.materialRepository = materialRepository;
         this.llmGateway = llmGateway;
+        this.materialRagApplicationService = materialRagApplicationService;
     }
 
     public void processTask(AsyncTaskRecord task) {
@@ -163,6 +166,13 @@ public class MaterialParseTaskProcessor {
         String analysis = llmGateway.chat(task.createdBy(), prompt);
         if (analysis == null || analysis.isBlank()) {
             throw new IllegalStateException("LLM returned empty analysis for material: " + material.id());
+        }
+
+        try {
+            materialRagApplicationService.indexMaterial(task.createdBy(), material.id(), content);
+        } catch (Exception indexEx) {
+            logger.warn("Material chunk/vector index failed but parse will continue: materialId={}, reason={}",
+                    material.id(), indexEx.getMessage());
         }
 
         materialRepository.markParseSuccess(material.id(), sha256Hex(content), analysis);

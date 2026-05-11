@@ -140,27 +140,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   setDifficulty: (difficulty) => set({ difficulty }),
   setCount: (count) => set({ count }),
   setInterviewMode: (enabled) => set({ interviewMode: enabled }),
-  tickProgress: () =>
-    set((state) => ({
-      materials: state.materials.map((item) => {
-        if (item.status !== "parsing" || !item.id.startsWith("mat-")) return item;
-        const nextProgress = Math.min(item.progress + 4, 96);
-        return {
-          ...item,
-          progress: nextProgress,
-          updatedAt: nowLabel()
-        };
-      }),
-      tasks: state.tasks.map((item) => {
-        if (item.status !== "running" || !item.traceId.startsWith("trc-")) return item;
-        const nextProgress = Math.min(item.progress + 5, 96);
-        return {
-          ...item,
-          progress: nextProgress,
-          duration: "本地模拟中"
-        };
-      })
-    })),
+  tickProgress: () => {
+    void syncProgressFromBackend(set, get);
+  },
   toggleMaterial: (id) =>
     set((state) => ({
       selectedMaterialIds: state.selectedMaterialIds.includes(id)
@@ -376,6 +358,51 @@ function statusDuration(status: TaskStatus) {
     queued: "已入队",
     running: "处理中"
   }[status];
+}
+
+async function syncProgressFromBackend(set: DashboardSetter, get: () => DashboardState) {
+  const activeTasks = get().tasks.filter(
+    (item) => (item.status === "running" || item.status === "queued") && !item.id.startsWith("task-")
+  );
+  if (activeTasks.length === 0) {
+    return;
+  }
+
+  const results = await Promise.allSettled(activeTasks.map((task) => getAsyncTask(task.id)));
+  const latestTasks = new Map<string, BackendAsyncTask>();
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      latestTasks.set(activeTasks[index].id, result.value);
+    }
+  });
+
+  if (latestTasks.size === 0) {
+    set(() => ({ apiState: "offline" }));
+    return;
+  }
+
+  set((state) => {
+    const materialTaskMap = new Map<string, { task: BackendAsyncTask; status: TaskStatus }>();
+    latestTasks.forEach((task) => {
+      if (typeof task.bizId === "number" && task.bizId > 0) {
+        materialTaskMap.set(String(task.bizId), { task, status: normalizeTaskStatus(task.status) });
+      }
+    });
+
+    return {
+      apiState: "online",
+      tasks: state.tasks.map((item) => {
+        const latest = latestTasks.get(item.id);
+        return latest ? mapUploadTask(latest, item.materialName, item) : item;
+      }),
+      materials: state.materials.map((item) => {
+        const current = materialTaskMap.get(item.id);
+        if (!current) return item;
+        return applyTaskStateToMaterial(item, current.task, current.status);
+      })
+    };
+  });
 }
 
 async function pollTaskStatus(taskNo: string, materialId: string, materialName: string, set: DashboardSetter) {

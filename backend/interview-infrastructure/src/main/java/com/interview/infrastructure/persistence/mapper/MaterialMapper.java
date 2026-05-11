@@ -18,6 +18,14 @@ public interface MaterialMapper {
 
     List<Material> selectByUserId(@Param("userId") Long userId, @Param("parseStatus") String parseStatus);
 
+    List<Long> selectDistinctUserIdsByParseStatus(@Param("parseStatus") String parseStatus, @Param("limit") int limit);
+
+    List<Material> selectByUserIdAndParseStatus(
+            @Param("userId") Long userId,
+            @Param("parseStatus") String parseStatus,
+            @Param("limit") Integer limit
+    );
+
     List<Material> selectByCondition(MaterialPO condition);
 
     int updateParseSuccess(

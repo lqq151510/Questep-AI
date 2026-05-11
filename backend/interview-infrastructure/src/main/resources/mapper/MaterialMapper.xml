@@ -135,6 +135,25 @@
         ORDER BY id DESC
     </select>
 
+    <select id="selectDistinctUserIdsByParseStatus" resultType="java.lang.Long">
+        SELECT DISTINCT user_id
+        FROM materials
+        WHERE parse_status = #{parseStatus}
+        ORDER BY user_id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectByUserIdAndParseStatus" resultMap="materialRecordMap">
+        SELECT <include refid="materialColumns"/>
+        FROM materials
+        WHERE user_id = #{userId}
+          AND parse_status = #{parseStatus}
+        ORDER BY parsed_at DESC, updated_at DESC, id DESC
+        <if test="limit != null and limit > 0">
+            LIMIT #{limit}
+        </if>
+    </select>
+
     <select id="selectByCondition" resultMap="materialRecordMap">
         SELECT <include refid="materialColumns"/>
         FROM materials

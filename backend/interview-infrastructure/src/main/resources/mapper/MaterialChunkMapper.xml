@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.MaterialChunkMapper">
+    <resultMap id="materialChunkMap" type="com.interview.domain.model.MaterialChunk">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="material_id" javaType="java.lang.Long"/>
+            <arg column="chunk_no" javaType="java.lang.Integer"/>
+            <arg column="chunk_text" javaType="java.lang.String"/>
+            <arg column="token_count" javaType="java.lang.Integer"/>
+            <arg column="embedding_model" javaType="java.lang.String"/>
+            <arg column="vector_id" javaType="java.lang.String"/>
+            <arg column="metadata_json" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="chunkColumns">
+        id, material_id, chunk_no, chunk_text, token_count, embedding_model, vector_id, metadata_json, created_at, updated_at
+    </sql>
+
+    <delete id="deleteByMaterialId">
+        DELETE FROM material_chunks
+        WHERE material_id = #{materialId}
+    </delete>
+
+    <insert id="batchInsert">
+        INSERT INTO material_chunks (
+            material_id,
+            chunk_no,
+            chunk_text,
+            token_count,
+            embedding_model,
+            vector_id,
+            metadata_json,
+            created_at,
+            updated_at
+        )
+        VALUES
+        <foreach collection="chunks" item="chunk" separator=",">
+            (
+                #{chunk.materialId},
+                #{chunk.chunkNo},
+                #{chunk.chunkText},
+                #{chunk.tokenCount},
+                #{chunk.embeddingModel},
+                #{chunk.vectorId},
+                #{chunk.metadataJson},
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectByVectorIds" resultMap="materialChunkMap">
+        SELECT <include refid="chunkColumns"/>
+        FROM material_chunks
+        WHERE vector_id IN
+        <foreach collection="vectorIds" item="vectorId" open="(" separator="," close=")">
+            #{vectorId}
+        </foreach>
+    </select>
+
+    <select id="selectRecentByUserId" resultMap="materialChunkMap">
+        SELECT mc.id,
+               mc.material_id,
+               mc.chunk_no,
+               mc.chunk_text,
+               mc.token_count,
+               mc.embedding_model,
+               mc.vector_id,
+               mc.metadata_json,
+               mc.created_at,
+               mc.updated_at
+        FROM material_chunks mc
+        INNER JOIN materials m ON m.id = mc.material_id
+        WHERE m.user_id = #{userId}
+        ORDER BY mc.updated_at DESC, mc.id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

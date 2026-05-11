@@ -6,6 +6,7 @@ import com.interview.domain.repository.AsyncTaskRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Component
+@ConditionalOnProperty(name = "app.async.polling.enabled", havingValue = "true")
 public class AsyncTaskScheduler {
     private static final Logger logger = LoggerFactory.getLogger(AsyncTaskScheduler.class);
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useDashboardStore } from "@/stores/useDashboardStore";
+import { fetchDashboardMetrics, type DashboardMetrics } from "@/lib/interview-api";
 
 const MotionLink = motion(Link);
 import {
@@ -24,12 +25,54 @@ import {
 import { PageHero } from "@/components/new-ui/PageHero";
 import { MetricCard } from "@/components/new-ui/cards";
 
-const metrics = [
-  { label: "已完成测试", value: 42, hint: "本周 +5", trend: "up" as const, trendValue: "+12%" },
-  { label: "模拟面试", value: 18, hint: "平均评分 85", trend: "up" as const, trendValue: "+8%" },
-  { label: "掌握知识点", value: 156, hint: "共 200 个", trend: "up" as const, trendValue: "+15" },
-  { label: "错题复习", value: 23, hint: "待复习", trend: "neutral" as const, trendValue: "进行中" },
+type MetricTrend = "up" | "down" | "neutral";
+type HomeMetric = {
+  label: string;
+  value: number | string;
+  hint: string;
+  trend: MetricTrend;
+  trendValue: string;
+};
+
+const loadingMetrics: HomeMetric[] = [
+  { label: "已完成测试", value: "--", hint: "加载中", trend: "neutral", trendValue: "同步中" },
+  { label: "模拟面试", value: "--", hint: "加载中", trend: "neutral", trendValue: "同步中" },
+  { label: "掌握知识点", value: "--", hint: "加载中", trend: "neutral", trendValue: "同步中" },
+  { label: "错题复习", value: "--", hint: "加载中", trend: "neutral", trendValue: "同步中" },
 ];
+
+function buildMetrics(metrics: DashboardMetrics): HomeMetric[] {
+  return [
+    {
+      label: "已完成测试",
+      value: metrics.completedTests,
+      hint: `最近题目 ${metrics.completedTests} 条`,
+      trend: metrics.completedTests > 0 ? "up" : "neutral",
+      trendValue: `${metrics.completedTests} 条`
+    },
+    {
+      label: "模拟面试",
+      value: metrics.mockInterviews,
+      hint: metrics.activeInterviewSessions > 0 ? "当前有进行中会话" : "当前无进行中会话",
+      trend: metrics.mockInterviews > 0 ? "up" : "neutral",
+      trendValue: `近期面试题 ${metrics.recentInterviewQuestions} 条`
+    },
+    {
+      label: "掌握知识点",
+      value: metrics.masteredPoints,
+      hint: `已解析资料 ${metrics.parsedMaterials} 份`,
+      trend: metrics.masteredPoints > 0 ? "up" : "neutral",
+      trendValue: `掌握 ${metrics.masteredPoints}`
+    },
+    {
+      label: "错题复习",
+      value: metrics.pendingWrongReviews,
+      hint: `待复习 ${metrics.pendingWrongReviews} 条`,
+      trend: "neutral",
+      trendValue: metrics.pendingWrongReviews > 0 ? "进行中" : "已清零"
+    }
+  ];
+}
 
 const stack = [
   { icon: BrainCircuit, label: "AI 引擎", value: "GPT-4" },
@@ -60,10 +103,41 @@ const quickLinks = [
 export default function HomePage() {
   const router = useRouter();
   const isLoggedIn = useDashboardStore((s) => s.isLoggedIn);
+  const [metrics, setMetrics] = useState<HomeMetric[]>(loadingMetrics);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setMetrics(loadingMetrics);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const latest = await fetchDashboardMetrics();
+      if (!cancelled) {
+        setMetrics(buildMetrics(latest));
+      }
+    })().catch(() => {
+      if (!cancelled) {
+        setMetrics((prev) =>
+          prev.map((item) => ({
+            ...item,
+            hint: "数据同步失败",
+            trend: "neutral",
+            trendValue: "离线"
+          }))
+        );
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
 

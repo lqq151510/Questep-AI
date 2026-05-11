@@ -8,6 +8,7 @@ import com.interview.domain.repository.AsyncTaskRecordRepository;
 import com.interview.domain.repository.MaterialRepository;
 import com.interview.domain.repository.QuestionRepository;
 import com.interview.domain.repository.UserRepository;
+import com.interview.infrastructure.security.ApiKeyCryptoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.annotation.MapperScan;
@@ -47,7 +48,8 @@ class InfrastructureRepositoryIntegrationTest {
             UserRepositoryImpl.class,
             MaterialRepositoryImpl.class,
             AsyncTaskRecordRepositoryImpl.class,
-            QuestionRepositoryImpl.class
+            QuestionRepositoryImpl.class,
+            ApiKeyCryptoService.class
     })
     static class TestConfiguration {
     }

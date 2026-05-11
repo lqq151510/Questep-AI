@@ -12,6 +12,7 @@ import java.util.Optional;
 @Repository
 public class MaterialRepositoryImpl implements MaterialRepository {
     private static final int MAX_PARSE_ERROR_LENGTH = 500;
+    private static final String PARSE_STATUS_SUCCESS = "SUCCESS";
 
     private final MaterialMapper materialMapper;
 
@@ -42,6 +43,22 @@ public class MaterialRepositoryImpl implements MaterialRepository {
     @Override
     public List<Material> findByUserId(Long userId) {
         return materialMapper.selectByUserId(userId, null);
+    }
+
+    @Override
+    public List<Long> findUsersWithParsedMaterials(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return materialMapper.selectDistinctUserIdsByParseStatus(PARSE_STATUS_SUCCESS, limit);
+    }
+
+    @Override
+    public List<Material> findParsedMaterialsByUser(Long userId, int limit) {
+        if (userId == null || limit <= 0) {
+            return List.of();
+        }
+        return materialMapper.selectByUserIdAndParseStatus(userId, PARSE_STATUS_SUCCESS, limit);
     }
 
     @Override

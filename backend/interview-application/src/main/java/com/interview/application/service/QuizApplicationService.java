@@ -16,7 +16,6 @@ import com.interview.domain.repository.MaterialRepository;
 import com.interview.domain.repository.QuestionRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,6 +32,12 @@ public class QuizApplicationService {
     private static final String MODEL_NAME_STRUCTURED = "llm-structured";
     private static final String MODEL_NAME_FALLBACK = "fallback-local";
     private static final int DEFAULT_REFRESH_BATCH = 20;
+    private static final int DEFAULT_PREWARM_MAX_USERS = 20;
+    private static final int DEFAULT_PREWARM_MATERIALS_PER_USER = 3;
+    private static final int DEFAULT_PREWARM_FRESH_THRESHOLD = 30;
+    private static final int MAX_PREWARM_MAX_USERS = 100;
+    private static final int MAX_PREWARM_MATERIALS_PER_USER = 10;
+    private static final int MAX_PREWARM_FRESH_THRESHOLD = 500;
 
     private final MaterialRepository materialRepository;
     private final QuestionRepository questionRepository;
@@ -64,7 +69,6 @@ public class QuizApplicationService {
     }
 
     @CircuitBreaker(name = "llmGateway", fallbackMethod = "generateQuizFallback")
-    @Retry(name = "llmGateway")
     @RateLimiter(name = "quizGeneration")
     public GeneratedQuizResult generate(Long userId, GenerateQuizCommand command) {
         validateGenerateInput(userId, command);
@@ -136,6 +140,53 @@ public class QuizApplicationService {
             }
         }
         return refreshed;
+    }
+
+    public int prewarmQuestionBank(
+            int maxUsers,
+            int materialsPerUser,
+            int freshThreshold,
+            int generateCount,
+            int difficulty
+    ) {
+        int safeMaxUsers = clamp(maxUsers, DEFAULT_PREWARM_MAX_USERS, 1, MAX_PREWARM_MAX_USERS);
+        int safeMaterialsPerUser = clamp(materialsPerUser, DEFAULT_PREWARM_MATERIALS_PER_USER, 1, MAX_PREWARM_MATERIALS_PER_USER);
+        int safeFreshThreshold = clamp(freshThreshold, DEFAULT_PREWARM_FRESH_THRESHOLD, 1, MAX_PREWARM_FRESH_THRESHOLD);
+        int safeGenerateCount = generationPolicy.normalizeCount(generateCount);
+        int safeDifficulty = generationPolicy.normalizeDifficulty(difficulty);
+
+        List<Long> userIds = materialRepository.findUsersWithParsedMaterials(safeMaxUsers);
+        if (userIds.isEmpty()) {
+            return 0;
+        }
+
+        int generatedQuestions = 0;
+        for (Long userId : userIds) {
+            int freshCount = questionRepository.countFreshApprovedByUser(userId, java.time.LocalDateTime.now());
+            if (freshCount >= safeFreshThreshold) {
+                continue;
+            }
+
+            List<Material> materials = materialRepository.findParsedMaterialsByUser(userId, safeMaterialsPerUser);
+            if (materials.isEmpty()) {
+                continue;
+            }
+
+            GenerateQuizCommand command = new GenerateQuizCommand(
+                    materials.stream().map(Material::id).toList(),
+                    "choice",
+                    safeDifficulty,
+                    safeGenerateCount,
+                    false
+            );
+            try {
+                GeneratedQuizResult result = generate(userId, command);
+                generatedQuestions += result.questions() == null ? 0 : result.questions().size();
+            } catch (Exception ex) {
+                logger.warn("Question prewarm failed for userId={}: {}", userId, ex.getMessage());
+            }
+        }
+        return generatedQuestions;
     }
 
     private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
@@ -236,6 +287,11 @@ public class QuizApplicationService {
 
     private String shortUuid() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private int clamp(int value, int defaultValue, int min, int max) {
+        int resolved = value <= 0 ? defaultValue : value;
+        return Math.max(min, Math.min(max, resolved));
     }
 
     private String toCommandQuestionType(String storedType) {

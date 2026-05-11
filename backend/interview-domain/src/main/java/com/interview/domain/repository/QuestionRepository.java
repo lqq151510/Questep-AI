@@ -24,6 +24,8 @@ public interface QuestionRepository {
 
     List<Question> findRecentByUser(Long userId, int offset, int limit);
 
+    int countFreshApprovedByUser(Long userId, LocalDateTime now);
+
     List<Question> selectByIds(List<Long> ids);
 
     int markExpiredForReview(LocalDateTime reviewedAt, String reviewStatus);

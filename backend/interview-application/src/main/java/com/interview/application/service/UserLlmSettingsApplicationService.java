@@ -2,12 +2,12 @@ package com.interview.application.service;
 
 import com.interview.application.dto.UpdateUserLlmSettingsCommand;
 import com.interview.application.dto.UserLlmSettingsView;
+import com.interview.common.util.LlmProviderNormalizer;
 import com.interview.domain.model.UserLlmSettings;
 import com.interview.domain.repository.UserLlmSettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -86,15 +86,7 @@ public class UserLlmSettingsApplicationService {
     }
 
     private String normalizeProvider(String provider) {
-        if (provider == null) {
-            return "openai";
-        }
-        String normalized = provider.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai-compatible";
-            case "anthropic", "claude" -> "anthropic";
-            default -> normalized;
-        };
+        return LlmProviderNormalizer.normalize(provider);
     }
 
     private String trimToNull(String value) {

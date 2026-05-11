@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.interview.infrastructure.persistence.mapper.UserLlmSettingsMapper">
-    <resultMap id="userLlmSettingsMap" type="com.interview.domain.model.UserLlmSettings">
-        <constructor>
-            <idArg column="id" javaType="java.lang.Long"/>
-            <arg column="user_id" javaType="java.lang.Long"/>
-            <arg column="provider_name" javaType="java.lang.String"/>
-            <arg column="model_name" javaType="java.lang.String"/>
-            <arg column="base_url" javaType="java.lang.String"/>
-            <arg column="api_key" javaType="java.lang.String"/>
-            <arg column="enabled" javaType="java.lang.Integer"/>
-            <arg column="created_at" javaType="java.time.LocalDateTime"/>
-            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
-        </constructor>
+    <resultMap id="userLlmSettingsMap" type="com.interview.infrastructure.persistence.entity.UserLlmSettingsPO">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="providerName" column="provider_name"/>
+        <result property="modelName" column="model_name"/>
+        <result property="baseUrl" column="base_url"/>
+        <result property="apiKey" column="api_key"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
     <select id="selectByUserId" resultMap="userLlmSettingsMap">

@@ -67,6 +67,14 @@ public class QuestionRepositoryImpl implements QuestionRepository {
     }
 
     @Override
+    public int countFreshApprovedByUser(Long userId, LocalDateTime now) {
+        if (userId == null || now == null) {
+            return 0;
+        }
+        return questionMapper.countFreshApprovedByUser(userId, now);
+    }
+
+    @Override
     public List<Question> selectByIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();

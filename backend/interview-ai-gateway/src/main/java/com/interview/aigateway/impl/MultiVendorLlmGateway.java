@@ -2,6 +2,7 @@ package com.interview.aigateway.impl;
 
 import com.interview.aigateway.exception.OpenAiGatewayException;
 import com.interview.application.port.LlmGateway;
+import com.interview.common.util.LlmProviderNormalizer;
 import com.interview.domain.model.UserLlmSettings;
 import com.interview.domain.repository.UserLlmSettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +15,6 @@ import org.springframework.web.client.RestClientException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,7 +52,7 @@ public class MultiVendorLlmGateway implements LlmGateway {
     ) {
         this.restClientBuilder = restClientBuilder;
         this.userLlmSettingsRepository = userLlmSettingsRepository;
-        this.defaultProvider = normalizeProvider(defaultProvider);
+        this.defaultProvider = LlmProviderNormalizer.normalize(defaultProvider);
         this.defaultBaseUrl = trimToNull(defaultBaseUrl);
         this.defaultApiKey = trimToNull(defaultApiKey);
         this.defaultModel = trimToNull(defaultModel);
@@ -149,7 +149,7 @@ public class MultiVendorLlmGateway implements LlmGateway {
                 .flatMap(userLlmSettingsRepository::findByUserId)
                 .filter(settings -> settings.enabled() == null || settings.enabled() == 1);
 
-        String provider = normalizeProvider(userSettings.map(UserLlmSettings::providerName).orElse(defaultProvider));
+        String provider = LlmProviderNormalizer.normalize(userSettings.map(UserLlmSettings::providerName).orElse(defaultProvider));
         String baseUrl = trimToNull(userSettings.map(UserLlmSettings::baseUrl).orElse(defaultBaseUrl));
         String apiKey = trimToNull(userSettings.map(UserLlmSettings::apiKey).orElse(defaultApiKey));
         String model = trimToNull(userSettings.map(UserLlmSettings::modelName).orElse(defaultModel));
@@ -225,18 +225,6 @@ public class MultiVendorLlmGateway implements LlmGateway {
             throw new OpenAiGatewayException("Anthropic returned empty text content");
         }
         return text;
-    }
-
-    private String normalizeProvider(String provider) {
-        if (provider == null || provider.isBlank()) {
-            return "openai";
-        }
-        String normalized = provider.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai-compatible";
-            case "anthropic", "claude" -> "anthropic";
-            default -> normalized;
-        };
     }
 
     private String normalizeBaseUrl(String value, String fallback) {
