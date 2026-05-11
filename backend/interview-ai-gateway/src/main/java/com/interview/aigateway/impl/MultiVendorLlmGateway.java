@@ -233,7 +233,7 @@ public class MultiVendorLlmGateway implements LlmGateway {
         }
         String normalized = provider.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
-            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai";
+            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai-compatible";
             case "anthropic", "claude" -> "anthropic";
             default -> normalized;
         };

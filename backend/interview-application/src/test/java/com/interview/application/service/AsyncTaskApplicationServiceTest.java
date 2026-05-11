@@ -55,7 +55,7 @@ class AsyncTaskApplicationServiceTest {
     void testGetByTaskNoSuccess() {
         when(asyncTaskRecordRepository.findByTaskNo("PARSE-123456")).thenReturn(Optional.of(testTask));
 
-        AsyncTaskRecord result = asyncTaskApplicationService.getByTaskNo("PARSE-123456");
+        AsyncTaskRecord result = asyncTaskApplicationService.getByTaskNo(1L, "PARSE-123456");
 
         assertNotNull(result);
         assertEquals("PARSE-123456", result.taskNo());
@@ -70,7 +70,20 @@ class AsyncTaskApplicationServiceTest {
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
-                () -> asyncTaskApplicationService.getByTaskNo("NONEXISTENT")
+                () -> asyncTaskApplicationService.getByTaskNo(1L, "NONEXISTENT")
+        );
+
+        assertEquals("Task not found", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("Test get task by taskNo throws exception when task is not owned by current user")
+    void testGetByTaskNoNotOwned() {
+        when(asyncTaskRecordRepository.findByTaskNo("PARSE-123456")).thenReturn(Optional.of(testTask));
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> asyncTaskApplicationService.getByTaskNo(2L, "PARSE-123456")
         );
 
         assertEquals("Task not found", exception.getMessage());

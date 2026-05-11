@@ -81,7 +81,7 @@ const entryCards = [
     icon: Settings2,
     title: "自定义模型",
     desc: "填入 Base URL、API Key 和模型名，切换你的专属模型。",
-    href: "/home",
+    href: "/settings",
     accent: "var(--cyan)",
   },
   {

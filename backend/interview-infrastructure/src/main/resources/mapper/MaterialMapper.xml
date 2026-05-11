@@ -139,6 +139,7 @@
         SELECT <include refid="materialColumns"/>
         FROM materials
         <where>
+            <if test="id != null">AND id = #{id}</if>
             <if test="userId != null">AND user_id = #{userId}</if>
             <if test="materialName != null and materialName != ''">
                 AND material_name LIKE CONCAT('%', #{materialName}, '%')

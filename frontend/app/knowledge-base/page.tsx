@@ -44,11 +44,17 @@ export default function KnowledgeBasePage() {
     fileInputRef.current?.click();
   };
 
+  const handleSingleFileUpload = async (file: File | null | undefined) => {
+    if (!file) return;
+    try {
+      await uploadMaterial(file);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files?.length) return;
-    await uploadMaterial(files[0]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    await handleSingleFileUpload(e.target.files?.[0]);
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -82,9 +88,10 @@ export default function KnowledgeBasePage() {
           setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setDragOver(false);
+          await handleSingleFileUpload(e.dataTransfer?.files?.[0]);
         }}
         onClick={handleUpload}
       >

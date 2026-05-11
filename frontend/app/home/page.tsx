@@ -47,7 +47,7 @@ const trainingSteps = [
 
 const quickLinks = [
   { icon: LockKeyhole, title: "登录 / 注册", desc: "进入个人训练空间", href: "/login", color: "var(--blue)" },
-  { icon: Settings2, title: "自定义模型", desc: "配置专属推理模型", href: "/home", color: "var(--cyan)" },
+  { icon: Settings2, title: "自定义模型", desc: "配置专属推理模型", href: "/settings", color: "var(--cyan)" },
   { icon: ListRestart, title: "题量设置", desc: "选择 5 / 10 / 20 / 30 题", href: "/question-bank", color: "var(--green)" },
   { icon: BrainCircuit, title: "AI 测试", desc: "快速开始技术测试", href: "/ai-test", color: "var(--blue)" },
   { icon: MessageSquare, title: "AI 面试官", desc: "模拟真实面试", href: "/ai-interviewer", color: "var(--cyan)" },
@@ -89,7 +89,7 @@ export default function HomePage() {
                 <strong>用户登录 / 注册</strong>
                 <span>保存个人题单、错题和训练记录</span>
               </Link>
-              <Link href="/home" className="focus-item">
+              <Link href="/settings" className="focus-item">
                 <strong>用户自定义模型</strong>
                 <span>填写 Base URL、API Key、模型名</span>
               </Link>

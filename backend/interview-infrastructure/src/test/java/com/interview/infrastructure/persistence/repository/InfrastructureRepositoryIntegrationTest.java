@@ -107,6 +107,19 @@ class InfrastructureRepositoryIntegrationTest {
     }
 
     @Test
+    void materialRepositoryShouldFindByIdAndUserIdPrecisely() {
+        User userA = userRepository.save("amy", "amy@example.com", "pwd_hash");
+        User userB = userRepository.save("ben", "ben@example.com", "pwd_hash");
+        Material materialA1 = materialRepository.save(userA.id(), "a-1.md", "md", "/tmp/a-1.md");
+        materialRepository.save(userA.id(), "a-2.md", "md", "/tmp/a-2.md");
+        Material materialB1 = materialRepository.save(userB.id(), "b-1.md", "md", "/tmp/b-1.md");
+
+        assertTrue(materialRepository.findByIdAndUserId(materialA1.id(), userA.id()).isPresent());
+        assertTrue(materialRepository.findByIdAndUserId(materialB1.id(), userA.id()).isEmpty());
+        assertTrue(materialRepository.findByIdAndUserId(999999L, userA.id()).isEmpty());
+    }
+
+    @Test
     void asyncTaskRecordRepositoryShouldSupportStatusUpdates() {
         User user = userRepository.save("charlie", "charlie@example.com", "pwd_hash");
         AsyncTaskRecord created = asyncTaskRecordRepository.create("TASK-001", "MATERIAL_PARSE", "MATERIAL_PARSE", 101L, user.id());

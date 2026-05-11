@@ -48,9 +48,48 @@ type QuizQuestion = {
   type: string;
   question: string;
   options: string[];
-  correct: number;
+  correct: number | null;
   referenceAnswer?: string;
 };
+
+type OptionEntry = [string, string];
+
+function normalizeAnswerText(value?: string | null): string {
+  if (!value) {
+    return "";
+  }
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function resolveCorrectIndex(referenceAnswer: string | null | undefined, optionEntries: OptionEntry[]): number | null {
+  if (!referenceAnswer || optionEntries.length === 0) {
+    return null;
+  }
+  const normalizedRef = normalizeAnswerText(referenceAnswer);
+  if (!normalizedRef) {
+    return null;
+  }
+
+  const keyExactIndex = optionEntries.findIndex(([key]) => normalizeAnswerText(key) === normalizedRef);
+  if (keyExactIndex >= 0) {
+    return keyExactIndex;
+  }
+
+  const valueExactIndex = optionEntries.findIndex(([, value]) => normalizeAnswerText(value) === normalizedRef);
+  if (valueExactIndex >= 0) {
+    return valueExactIndex;
+  }
+
+  const keyTokenIndex = optionEntries.findIndex(([key]) => {
+    const escapedKey = key.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escapedKey}([^a-z0-9]|$)`, "i").test(referenceAnswer);
+  });
+  if (keyTokenIndex >= 0) {
+    return keyTokenIndex;
+  }
+
+  return null;
+}
 
 export default function AITestPage() {
   const [direction, setDirection] = useState("Java");
@@ -90,12 +129,37 @@ export default function AITestPage() {
 
       const quizQuestions: QuizQuestion[] = (result.questions || []).map((q, idx) => {
         let options: string[] = [];
-        const correct = 0;
+        let correct: number | null = null;
+        let optionEntries: OptionEntry[] = [];
+
         if (q.optionsJson && typeof q.optionsJson === "object") {
-          const opts = q.optionsJson as Record<string, string>;
-          options = Object.values(opts);
+          const opts = q.optionsJson as Record<string, unknown>;
+          optionEntries = Object.entries(opts).reduce<OptionEntry[]>((entries, [key, value]) => {
+            if (typeof value === "string" && value.trim().length > 0) {
+              entries.push([key, value]);
+            }
+            return entries;
+          }, []);
+        } else if (typeof q.optionsJson === "string") {
+          try {
+            const parsed = JSON.parse(q.optionsJson) as Record<string, unknown>;
+            optionEntries = Object.entries(parsed).reduce<OptionEntry[]>((entries, [key, value]) => {
+              if (typeof value === "string" && value.trim().length > 0) {
+                entries.push([key, value]);
+              }
+              return entries;
+            }, []);
+          } catch {
+            optionEntries = [];
+          }
+        }
+
+        if (optionEntries.length > 0) {
+          options = optionEntries.map(([, value]) => value);
+          correct = resolveCorrectIndex(q.referenceAnswer, optionEntries);
         } else if (q.referenceAnswer) {
           options = [q.referenceAnswer, "选项 B", "选项 C", "选项 D"];
+          correct = 0;
         } else {
           options = ["A", "B", "C", "D"];
         }
@@ -144,7 +208,19 @@ export default function AITestPage() {
     }, 800);
   };
 
-  const correctCount = answers.filter((a, i) => a === questions[i]?.correct).length;
+  const correctCount = answers.reduce((total, selectedAnswer, index) => {
+    const expected = questions[index]?.correct;
+    if (expected === null || expected === undefined) {
+      return total;
+    }
+    return selectedAnswer === expected ? total + 1 : total;
+  }, 0);
+  const scoredCount = answers.reduce((total, _, index) => {
+    const expected = questions[index]?.correct;
+    return expected === null || expected === undefined ? total : total + 1;
+  }, 0);
+  const hasUngradableQuestions = questions.some((question) => question.correct === null);
+  const scorePercent = scoredCount > 0 ? Math.round((correctCount / scoredCount) * 100) : null;
   const progress = questions.length > 0
     ? ((currentQ + (selected !== null ? 1 : 0)) / questions.length) * 100
     : 0;
@@ -237,21 +313,29 @@ export default function AITestPage() {
             <Trophy size={32} className="text-[var(--green)]" />
           </div>
           <h2 className="text-2xl font-bold text-[var(--ink)]">
-            <AnimatedCounter target={Math.round((correctCount / questions.length) * 100)} suffix="%" />
+            {scorePercent === null
+              ? "不可评分"
+              : <AnimatedCounter target={scorePercent} suffix="%" />}
           </h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            答对 {correctCount} / {questions.length} 题
-          </p>
+          {scorePercent === null ? (
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              题目缺少可判定标准答案，已降级为练习模式，不计分。
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              答对 {correctCount} / {scoredCount} 题
+            </p>
+          )}
 
           <div className="mt-6 grid grid-cols-3 gap-4">
             <div className="rounded-xl bg-[var(--surface-soft)] p-4">
               <Target size={18} className="mx-auto text-[var(--blue)]" />
-              <p className="mt-2 text-lg font-bold">{correctCount}</p>
+              <p className="mt-2 text-lg font-bold">{scorePercent === null ? "-" : correctCount}</p>
               <p className="text-xs text-[var(--muted)]">正确</p>
             </div>
             <div className="rounded-xl bg-[var(--surface-soft)] p-4">
               <XCircle size={18} className="mx-auto text-[var(--red)]" />
-              <p className="mt-2 text-lg font-bold">{questions.length - correctCount}</p>
+              <p className="mt-2 text-lg font-bold">{scorePercent === null ? "-" : scoredCount - correctCount}</p>
               <p className="text-xs text-[var(--muted)]">错误</p>
             </div>
             <div className="rounded-xl bg-[var(--surface-soft)] p-4">
@@ -260,6 +344,11 @@ export default function AITestPage() {
               <p className="text-xs text-[var(--muted)]">难度</p>
             </div>
           </div>
+          {hasUngradableQuestions && scorePercent !== null && (
+            <p className="mt-4 text-xs text-[var(--muted)]">
+              有 {questions.length - scoredCount} 题缺少可判定答案，未计入分数。
+            </p>
+          )}
 
           <div className="mt-6 flex justify-center gap-3">
             <button type="button" className="btn btn-accent" onClick={() => { setStarted(false); setFinished(false); }}>
@@ -305,11 +394,17 @@ export default function AITestPage() {
       >
         <p className="question-type">{q?.type}</p>
         <h3 className="mt-2 text-lg font-semibold">{q?.question}</h3>
+        {q?.correct === null && (
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            当前题目未返回可判定答案，已自动降级为练习模式（不计分）。
+          </p>
+        )}
 
         <div className="option-list">
           {q?.options.map((opt, idx) => {
             const isSelected = selected === idx;
-            const isCorrect = idx === q.correct;
+            const isScorable = q.correct !== null;
+            const isCorrect = isScorable && idx === q.correct;
             const showResult = selected !== null;
 
             let borderColor = "var(--border)";
@@ -318,9 +413,12 @@ export default function AITestPage() {
               if (isCorrect) {
                 borderColor = "var(--green)";
                 bgColor = "var(--green-soft)";
-              } else if (isSelected) {
+              } else if (isSelected && isScorable) {
                 borderColor = "var(--red)";
                 bgColor = "var(--red-soft)";
+              } else if (isSelected) {
+                borderColor = "var(--blue)";
+                bgColor = "var(--blue-soft)";
               }
             }
 
@@ -344,14 +442,16 @@ export default function AITestPage() {
                   style={
                     showResult && isCorrect
                       ? { background: "var(--green)", color: "white" }
-                      : showResult && isSelected
+                      : showResult && isSelected && isScorable
                         ? { background: "var(--red)", color: "white" }
+                        : showResult && isSelected
+                          ? { background: "var(--blue)", color: "white" }
                         : undefined
                   }
                 >
                   {showResult && isCorrect ? (
                     <CheckCircle size={14} />
-                  ) : showResult && isSelected ? (
+                  ) : showResult && isSelected && isScorable ? (
                     <XCircle size={14} />
                   ) : (
                     String.fromCharCode(65 + idx)

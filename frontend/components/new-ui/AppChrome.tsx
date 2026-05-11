@@ -23,6 +23,7 @@ export default function AppChrome() {
   const router = useRouter();
   const { user, isLoggedIn, logout } = useDashboardStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -37,6 +38,13 @@ export default function AppChrome() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Avoid hydration mismatch caused by auth state reading from localStorage on client.
+  useEffect(() => {
+    setAuthReady(true);
+  }, []);
+
+  const showLoggedIn = authReady && isLoggedIn && user;
 
   return (
     <>
@@ -60,7 +68,7 @@ export default function AppChrome() {
           </div>
 
           <div className="chrome-actions">
-            {isLoggedIn && user ? (
+            {showLoggedIn ? (
               <>
                 <span className="chrome-user-badge">
                   <User size={14} />
@@ -80,7 +88,7 @@ export default function AppChrome() {
                 登录 / 注册
               </Link>
             )}
-            <Link href="/home" className="chrome-auth-link subtle">
+            <Link href="/settings" className="chrome-auth-link subtle">
               模型配置
             </Link>
             <ThemeToggle />

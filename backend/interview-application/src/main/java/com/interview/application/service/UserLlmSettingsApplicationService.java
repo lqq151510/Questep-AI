@@ -43,11 +43,12 @@ public class UserLlmSettingsApplicationService {
     public UserLlmSettingsView update(Long userId, UpdateUserLlmSettingsCommand command) {
         Optional<UserLlmSettings> existing = repository.findByUserId(userId);
         String apiKey = resolveApiKey(command.apiKey(), existing.map(UserLlmSettings::apiKey).orElse(null));
+        String providerName = normalizeProvider(command.providerName());
         UserLlmSettings saved = repository.saveOrUpdate(
                 userId,
-                normalizeProvider(command.providerName()),
+                providerName,
                 command.modelName().trim(),
-                trimToNull(command.baseUrl()),
+                normalizeBaseUrl(providerName, command.baseUrl()),
                 apiKey,
                 Boolean.TRUE.equals(command.enabled()) ? 1 : 0
         );
@@ -90,7 +91,7 @@ public class UserLlmSettingsApplicationService {
         }
         String normalized = provider.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
-            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai";
+            case "openai-compatible", "openai_compatible", "openai-format", "openai_format", "compatible" -> "openai-compatible";
             case "anthropic", "claude" -> "anthropic";
             default -> normalized;
         };
@@ -102,5 +103,16 @@ public class UserLlmSettingsApplicationService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeBaseUrl(String providerName, String baseUrl) {
+        String normalized = trimToNull(baseUrl);
+        if (normalized != null && normalized.matches("(?i)^https://api\\.deepseek\\.co(/.*)?$")) {
+            if (!"deepseek".equals(providerName)) {
+                return normalized.replaceFirst("(?i)^https://api\\.deepseek\\.co", "https://api.deepseek.com");
+            }
+            return "https://api.deepseek.com";
+        }
+        return normalized;
     }
 }

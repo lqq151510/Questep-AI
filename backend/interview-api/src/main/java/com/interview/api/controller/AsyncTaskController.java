@@ -1,5 +1,6 @@
 package com.interview.api.controller;
 
+import com.interview.api.support.CurrentUser;
 import com.interview.application.service.AsyncTaskApplicationService;
 import com.interview.common.api.ApiResponse;
 import com.interview.domain.model.AsyncTaskRecord;
@@ -22,6 +23,6 @@ public class AsyncTaskController {
         if (!TASK_NO_PATTERN.matcher(taskNo).matches()) {
             throw new IllegalArgumentException("Invalid task number format");
         }
-        return ApiResponse.ok(service.getByTaskNo(taskNo));
+        return ApiResponse.ok(service.getByTaskNo(CurrentUser.id(), taskNo));
     }
 }

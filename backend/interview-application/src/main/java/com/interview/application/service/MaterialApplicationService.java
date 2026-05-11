@@ -49,8 +49,8 @@ public class MaterialApplicationService {
 
     @Transactional
     public UploadMaterialResult retryParseTask(Long userId, Long materialId) {
-        Material material = materialRepository.findById(materialId)
-                .orElseThrow(() -> new ResourceNotFoundException("Material not found: " + materialId));
+        Material material = materialRepository.findByIdAndUserId(materialId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found or not owned by user: " + materialId));
         materialRepository.markParsePending(materialId);
         AsyncTaskRecord task = asyncTaskRecordRepository.create(
                 TaskConstants.TASK_NO_PREFIX + UUID.randomUUID().toString().replace("-", ""),

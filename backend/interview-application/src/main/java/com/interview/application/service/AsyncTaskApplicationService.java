@@ -14,8 +14,12 @@ public class AsyncTaskApplicationService {
         this.asyncTaskRecordRepository = asyncTaskRecordRepository;
     }
 
-    public AsyncTaskRecord getByTaskNo(String taskNo) {
-        return asyncTaskRecordRepository.findByTaskNo(taskNo)
+    public AsyncTaskRecord getByTaskNo(Long userId, String taskNo) {
+        AsyncTaskRecord task = asyncTaskRecordRepository.findByTaskNo(taskNo)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        if (userId == null || task.createdBy() == null || !task.createdBy().equals(userId)) {
+            throw new ResourceNotFoundException("Task not found");
+        }
+        return task;
     }
 }
