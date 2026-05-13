@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.PromptTemplateMapper">
+    <resultMap id="promptTemplateMap" type="com.interview.domain.model.PromptTemplate">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="template_key" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.Integer"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="system_prompt" javaType="java.lang.String"/>
+            <arg column="user_template" javaType="java.lang.String"/>
+            <arg column="variables" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO prompt_templates (template_key, version, name, system_prompt, user_template, variables, status)
+        VALUES (#{templateKey}, #{version}, #{name}, #{systemPrompt}, #{userTemplate}, #{variables}, #{status})
+    </insert>
+
+    <select id="selectById" resultMap="promptTemplateMap">
+        SELECT id, template_key, version, name, system_prompt, user_template, variables, status, created_at, updated_at
+        FROM prompt_templates WHERE id = #{id}
+    </select>
+
+    <select id="selectActiveByKey" resultMap="promptTemplateMap">
+        SELECT id, template_key, version, name, system_prompt, user_template, variables, status, created_at, updated_at
+        FROM prompt_templates
+        WHERE template_key = #{templateKey} AND status = 'ACTIVE'
+        ORDER BY version DESC LIMIT 1
+    </select>
+
+    <select id="selectByKey" resultMap="promptTemplateMap">
+        SELECT id, template_key, version, name, system_prompt, user_template, variables, status, created_at, updated_at
+        FROM prompt_templates
+        WHERE template_key = #{templateKey}
+        ORDER BY version DESC
+    </select>
+
+    <update id="updateStatusByKeyAndVersion">
+        UPDATE prompt_templates SET status = #{status}
+        WHERE template_key = #{templateKey} AND version = #{version}
+    </update>
+</mapper>

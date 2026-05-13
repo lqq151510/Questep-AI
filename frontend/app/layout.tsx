@@ -4,6 +4,7 @@ import "./globals.css";
 import AppChrome from "@/components/new-ui/AppChrome";
 import { ToastProvider } from "@/components/new-ui/ToastProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -50,7 +51,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <ToastProvider>
               <AppChrome />
-              <main className="container page-fade">{children}</main>
+              <ErrorBoundary>
+                <main className="container page-fade">{children}</main>
+              </ErrorBoundary>
             </ToastProvider>
           </div>
         </ThemeProvider>

@@ -1,7 +1,9 @@
 package com.interview.api.controller;
 
 import com.interview.application.service.TokenBlacklistService;
+import com.interview.application.service.LoginAttemptService;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,6 +51,14 @@ class AuthIntegrationTest {
 
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private LoginAttemptService loginAttemptService;
+
+    @BeforeEach
+    void setUp() {
+        loginAttemptService.recordSuccessfulAttempt("demo_user");
+    }
 
     @Test
     @DisplayName("login with valid credentials returns token")
@@ -161,7 +173,9 @@ class AuthIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andReturn();
 
-        String message = JsonPath.read(blocked.getResponse().getContentAsString(), "$.message");
-        assertTrue(message.contains("锁定") || message.contains("分钟"));
+        String message = JsonPath.read(blocked.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.message");
+        assertNotNull(message);
+        assertTrue(message.contains("锁定") || message.contains("分钟"),
+                "Expected lockout message containing 锁定 or 分钟 but got: " + message);
     }
 }

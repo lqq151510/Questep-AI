@@ -6,20 +6,23 @@ import com.interview.common.util.LlmProviderNormalizer;
 import com.interview.domain.model.UserLlmSettings;
 import com.interview.domain.repository.UserLlmSettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Primary
 @Component
 public class MultiVendorLlmGateway implements LlmGateway {
     private static final Pattern JSON_STRING_PATTERN_TEMPLATE = Pattern.compile("\"%s\"\\s*:\\s*\"([^\"]*)\"");
@@ -144,6 +147,175 @@ public class MultiVendorLlmGateway implements LlmGateway {
         throw new OpenAiGatewayException("Anthropic request failed unexpectedly");
     }
 
+    private void callOpenAiCompatibleApiStream(ResolvedLlmConfig config, String prompt, Consumer<String> tokenConsumer) {
+        RestClient client = restClientBuilder.baseUrl(normalizeBaseUrl(config.baseUrl(), "https://api.openai.com/v1")).build();
+        OpenAiChatRequest request = new OpenAiChatRequest(
+                config.model(),
+                List.of(
+                        new OpenAiMessage("system", systemPrompt),
+                        new OpenAiMessage("user", prompt)
+                ),
+                0.4,
+                true,
+                Map.of("include_usage", true)
+        );
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                client.post()
+                        .uri("/chat/completions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .headers(headers -> headers.setBearerAuth(config.apiKey()))
+                        .body(request)
+                        .exchange((req, resp) -> {
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(resp.getBody(), StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    if (line.isEmpty() || !line.startsWith("data:")) {
+                                        continue;
+                                    }
+                                    String data = line.substring(5).strip();
+                                    if ("[DONE]".equals(data)) {
+                                        break;
+                                    }
+                                    String token = extractOpenAiStreamToken(data);
+                                    if (token != null && !token.isEmpty()) {
+                                        tokenConsumer.accept(token);
+                                    }
+                                }
+                            }
+                            return null;
+                        });
+                return;
+            } catch (Exception ex) {
+                if (attempt == maxAttempts) {
+                    throw new OpenAiGatewayException(
+                            "OpenAI-compatible streaming request failed after " + maxAttempts + " attempts: " + ex.getMessage(), ex);
+                }
+                sleepBeforeRetry();
+            }
+        }
+    }
+
+    private String extractOpenAiStreamToken(String json) {
+        try {
+            int choicesIdx = json.indexOf("\"choices\"");
+            if (choicesIdx < 0) {
+                return null;
+            }
+            int deltaIdx = json.indexOf("\"delta\"", choicesIdx);
+            if (deltaIdx < 0) {
+                return null;
+            }
+            int contentIdx = json.indexOf("\"content\"", deltaIdx);
+            if (contentIdx < 0) {
+                return null;
+            }
+            int colonIdx = json.indexOf(':', contentIdx);
+            if (colonIdx < 0) {
+                return null;
+            }
+            int valueStart = json.indexOf('"', colonIdx + 1);
+            if (valueStart < 0) {
+                return null;
+            }
+            int valueEnd = json.indexOf('"', valueStart + 1);
+            if (valueEnd < 0) {
+                return null;
+            }
+            String raw = json.substring(valueStart + 1, valueEnd);
+            return unescapeJson(raw);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void callAnthropicApiStream(ResolvedLlmConfig config, String prompt, Consumer<String> tokenConsumer) {
+        RestClient client = restClientBuilder.baseUrl(normalizeBaseUrl(config.baseUrl(), "https://api.anthropic.com")).build();
+        AnthropicRequest request = new AnthropicRequest(
+                config.model(),
+                DEFAULT_MAX_TOKENS,
+                systemPrompt,
+                List.of(new AnthropicMessage("user", prompt)),
+                true
+        );
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                client.post()
+                        .uri("/v1/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("x-api-key", config.apiKey())
+                        .header("anthropic-version", "2023-06-01")
+                        .body(request)
+                        .exchange((req, resp) -> {
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(resp.getBody(), StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    if (line.isEmpty() || !line.startsWith("data:")) {
+                                        continue;
+                                    }
+                                    String data = line.substring(5).strip();
+                                    String token = extractAnthropicStreamToken(data);
+                                    if (token != null && !token.isEmpty()) {
+                                        tokenConsumer.accept(token);
+                                    }
+                                }
+                            }
+                            return null;
+                        });
+                return;
+            } catch (Exception ex) {
+                if (attempt == maxAttempts) {
+                    throw new OpenAiGatewayException(
+                            "Anthropic streaming request failed after " + maxAttempts + " attempts: " + ex.getMessage(), ex);
+                }
+                sleepBeforeRetry();
+            }
+        }
+    }
+
+    private String extractAnthropicStreamToken(String json) {
+        try {
+            if (!json.contains("\"content_block_delta\"")) {
+                return null;
+            }
+            int textIdx = json.indexOf("\"text\"");
+            if (textIdx < 0) {
+                return null;
+            }
+            int colonIdx = json.indexOf(':', textIdx);
+            if (colonIdx < 0) {
+                return null;
+            }
+            int valueStart = json.indexOf('"', colonIdx + 1);
+            if (valueStart < 0) {
+                return null;
+            }
+            int valueEnd = json.indexOf('"', valueStart + 1);
+            if (valueEnd < 0) {
+                return null;
+            }
+            String raw = json.substring(valueStart + 1, valueEnd);
+            return unescapeJson(raw);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String unescapeJson(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        return raw.replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\r", "\r")
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\");
+    }
+
     private ResolvedLlmConfig resolveConfig(Long userId) {
         Optional<UserLlmSettings> userSettings = Optional.ofNullable(userId)
                 .flatMap(userLlmSettingsRepository::findByUserId)
@@ -258,7 +430,11 @@ public class MultiVendorLlmGateway implements LlmGateway {
     private record LocalClaudeSettings(String authToken, String baseUrl, String model) {
     }
 
-    private record OpenAiChatRequest(String model, List<OpenAiMessage> messages, double temperature) {
+    private record OpenAiChatRequest(String model, List<OpenAiMessage> messages, double temperature, boolean stream,
+                                     Map<String, Object> stream_options) {
+        OpenAiChatRequest(String model, List<OpenAiMessage> messages, double temperature) {
+            this(model, messages, temperature, false, null);
+        }
     }
 
     private record OpenAiChatResponse(List<OpenAiChoice> choices) {
@@ -270,7 +446,11 @@ public class MultiVendorLlmGateway implements LlmGateway {
     private record OpenAiMessage(String role, String content) {
     }
 
-    private record AnthropicRequest(String model, int max_tokens, String system, List<AnthropicMessage> messages) {
+    private record AnthropicRequest(String model, int max_tokens, String system, List<AnthropicMessage> messages,
+                                    boolean stream) {
+        AnthropicRequest(String model, int max_tokens, String system, List<AnthropicMessage> messages) {
+            this(model, max_tokens, system, messages, false);
+        }
     }
 
     private record AnthropicMessage(String role, String content) {

@@ -68,3 +68,29 @@ Frontend local token:
 localStorage.setItem("interview_token", "<login token>");
 localStorage.setItem("interview_refresh_token", "<refresh token>");
 ```
+
+## Observability
+
+- New metrics:
+  - `llm_call_total`
+  - `llm_call_latency`
+  - `llm_call_error_total`
+  - `async_task_failure_total`
+  - `ws_disconnect_total`
+- Prometheus alert/recording rules:
+  - `observability/prometheus-rules.yml`
+- Grafana dashboard:
+  - `observability/grafana/provisioning/dashboards/interview-overview.json`
+
+Start observability stack:
+
+```bash
+docker compose -f docker-compose.infrastructure.yml up -d prometheus grafana zipkin
+```
+
+## Frontend E2E
+
+```bash
+cd frontend
+npm run test:e2e
+```

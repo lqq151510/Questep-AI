@@ -114,8 +114,30 @@ export default function AIInterviewerPage() {
         const payload = JSON.parse(event.data) as {
           type?: string;
           message?: string;
-          data?: { reply?: string; code?: string };
+          data?: { reply?: string; token?: string; code?: string; fullReply?: string };
         };
+
+        if (payload.type === "chat_token") {
+          const token = payload.data?.token || "";
+          const now = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+          setMessages((prev) => {
+            const copy = [...prev];
+            const last = copy[copy.length - 1];
+            if (last && last.role === "ai") {
+              copy[copy.length - 1] = { ...last, content: last.content + token };
+            } else {
+              copy.push({ role: "ai", content: token, time: now });
+            }
+            return copy;
+          });
+          if (!sending) setSending(true);
+          return;
+        }
+
+        if (payload.type === "chat_done") {
+          setSending(false);
+          return;
+        }
 
         if (payload.type === "chat_reply") {
           const replyText = payload.data?.reply || "请继续回答，或者告诉我你想换一个话题。";
@@ -131,7 +153,7 @@ export default function AIInterviewerPage() {
           return;
         }
 
-        if (payload.type === "error") {
+        if (payload.type === "chat_error" || payload.type === "error") {
           const errText = payload.message || "对话失败";
           setError(errText);
           setSending(false);

@@ -29,17 +29,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         return this.props.fallback;
       }
       return (
-        <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 p-6">
+        <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-[var(--red)]/30 bg-[var(--red-soft)] p-6">
           <div className="text-center">
-            <p className="text-lg font-semibold text-red-400">Something went wrong</p>
-            <p className="mt-2 text-sm text-gray-400">
-              {this.state.error?.message || "An unexpected error occurred"}
+            <p className="text-lg font-semibold text-[var(--red)]">页面出现异常</p>
+            <p className="mt-2 text-sm text-[var(--ink)]/80">
+              {this.state.error?.message || "发生了未预期错误，请稍后重试"}
             </p>
             <button
-              className="mt-4 rounded-lg bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20"
+              className="btn btn-ghost mt-4"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
-              Try again
+              重试
             </button>
           </div>
         </div>

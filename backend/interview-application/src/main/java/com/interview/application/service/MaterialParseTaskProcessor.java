@@ -7,6 +7,7 @@ import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
 import com.interview.domain.repository.MaterialRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,17 +29,20 @@ public class MaterialParseTaskProcessor {
     private final MaterialRepository materialRepository;
     private final LlmGateway llmGateway;
     private final MaterialRagApplicationService materialRagApplicationService;
+    private final MeterRegistry meterRegistry;
 
     public MaterialParseTaskProcessor(
             AsyncTaskRecordRepository asyncTaskRecordRepository,
             MaterialRepository materialRepository,
             LlmGateway llmGateway,
-            MaterialRagApplicationService materialRagApplicationService
+            MaterialRagApplicationService materialRagApplicationService,
+            MeterRegistry meterRegistry
     ) {
         this.asyncTaskRecordRepository = asyncTaskRecordRepository;
         this.materialRepository = materialRepository;
         this.llmGateway = llmGateway;
         this.materialRagApplicationService = materialRagApplicationService;
+        this.meterRegistry = meterRegistry;
     }
 
     public void processTask(AsyncTaskRecord task) {
@@ -119,6 +123,13 @@ public class MaterialParseTaskProcessor {
             } catch (Exception updateMaterialError) {
                 logger.error("Failed to update material parse failure state: materialId={}", task.bizId(), updateMaterialError);
             }
+            meterRegistry.counter(
+                    "async_task_failure_total",
+                    "task_type", safeTag(task.taskType()),
+                    "error_code", safeTag(errorCode),
+                    "stage", safeTag(stage),
+                    "retryable", String.valueOf(retryable)
+            ).increment();
             asyncTaskRecordRepository.updateError(task.id(), errorMsg, errorCode, stage, retryable);
         }
     }
@@ -223,5 +234,12 @@ public class MaterialParseTaskProcessor {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm not available", e);
         }
+    }
+
+    private String safeTag(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        return value.trim().toLowerCase();
     }
 }

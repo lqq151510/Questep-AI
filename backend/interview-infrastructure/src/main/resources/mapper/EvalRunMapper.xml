@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.EvalRunMapper">
+    <resultMap id="evalRunMap" type="com.interview.domain.model.EvalRun">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="run_key" javaType="java.lang.String"/>
+            <arg column="prompt_version_id" javaType="java.lang.Long"/>
+            <arg column="total_cases" javaType="java.lang.Integer"/>
+            <arg column="passed_cases" javaType="java.lang.Integer"/>
+            <arg column="avg_score" javaType="java.lang.Double"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.LocalDateTime"/>
+            <arg column="finished_at" javaType="java.time.LocalDateTime"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_runs (run_key, prompt_version_id, total_cases, passed_cases, avg_score, status, started_at, finished_at)
+        VALUES (#{runKey}, #{promptVersionId}, #{totalCases}, #{passedCases}, #{avgScore}, #{status}, #{startedAt}, #{finishedAt})
+    </insert>
+
+    <select id="selectByRunKey" resultMap="evalRunMap">
+        SELECT id, run_key, prompt_version_id, total_cases, passed_cases, avg_score, status, started_at, finished_at, created_at
+        FROM eval_runs WHERE run_key = #{runKey}
+    </select>
+
+    <select id="selectAll" resultMap="evalRunMap">
+        SELECT id, run_key, prompt_version_id, total_cases, passed_cases, avg_score, status, started_at, finished_at, created_at
+        FROM eval_runs ORDER BY created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="evalRunMap">
+        SELECT id, run_key, prompt_version_id, total_cases, passed_cases, avg_score, status, started_at, finished_at, created_at
+        FROM eval_runs WHERE id = #{id}
+    </select>
+
+    <update id="updateFinished">
+        UPDATE eval_runs
+        SET total_cases = #{totalCases}, passed_cases = #{passedCases}, avg_score = #{avgScore}, status = #{status}, finished_at = NOW()
+        WHERE id = #{id}
+    </update>
+</mapper>

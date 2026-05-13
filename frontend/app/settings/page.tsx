@@ -9,6 +9,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import { InlineErrorState, PageLoadingState } from "@/components/ui/PageState";
 import {
   getLlmSettings,
   updateLlmSettings,
@@ -173,11 +174,7 @@ export default function ModelSettingsPage() {
           title="模型配置"
           description="配置 AI 模型的连接参数，支持 OpenAI、DeepSeek 及本地兼容模型。"
         />
-        <div className="panel">
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-[var(--blue)]" />
-          </div>
-        </div>
+        <PageLoadingState text="正在加载模型配置..." />
       </div>
     );
   }
@@ -191,11 +188,7 @@ export default function ModelSettingsPage() {
       />
 
       <div className="panel">
-        {error && (
-          <div className="mb-4 rounded-lg bg-[var(--red-soft)] p-3 text-sm text-[var(--red)]">
-            {error}
-          </div>
-        )}
+        {error && <InlineErrorState message={error} />}
 
         {success && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-[var(--green-soft)] p-3 text-sm text-[var(--green)]">

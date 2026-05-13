@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.EvalCaseMapper">
+    <resultMap id="evalCaseMap" type="com.interview.domain.model.EvalCase">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="case_key" javaType="java.lang.String"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="input" javaType="java.lang.String"/>
+            <arg column="expected_keywords" javaType="java.lang.String"/>
+            <arg column="expected_structure" javaType="java.lang.String"/>
+            <arg column="min_score" javaType="java.lang.Double"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectActive" resultMap="evalCaseMap">
+        SELECT id, case_key, category, description, input, expected_keywords, expected_structure, min_score, status, created_at, updated_at
+        FROM eval_cases WHERE status = 'ACTIVE'
+    </select>
+
+    <select id="selectById" resultMap="evalCaseMap">
+        SELECT id, case_key, category, description, input, expected_keywords, expected_structure, min_score, status, created_at, updated_at
+        FROM eval_cases WHERE id = #{id}
+    </select>
+</mapper>

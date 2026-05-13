@@ -3,8 +3,8 @@ package com.interview.api.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.interview.application.dto.ChatMessage;
 import com.interview.application.dto.ChatRequest;
-import com.interview.application.dto.ChatResponse;
 import com.interview.application.service.ChatApplicationService;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,15 +29,31 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final ChatApplicationService chatApplicationService;
+    private final MeterRegistry meterRegistry;
 
-    public InterviewWebSocketHandler(ObjectMapper objectMapper, ChatApplicationService chatApplicationService) {
+    public InterviewWebSocketHandler(
+            ObjectMapper objectMapper,
+            ChatApplicationService chatApplicationService,
+            MeterRegistry meterRegistry
+    ) {
         this.objectMapper = objectMapper;
         this.chatApplicationService = chatApplicationService;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         sendEvent(session, "connected", "WebSocket connected", null);
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+        meterRegistry.counter(
+                "ws_disconnect_total",
+                "close_code", String.valueOf(status.getCode()),
+                "reason", safeReason(status.getReason())
+        ).increment();
+        super.afterConnectionClosed(session, status);
     }
 
     @Override
@@ -67,15 +83,31 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
                     enrichMessageForInterview(request),
                     trimContext(toChatContext(request.context()))
             );
-            ChatResponse response = chatApplicationService.chat(userId, chatRequest);
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("reply", response.reply());
-            payload.put("timestamp", Instant.now().toString());
-            sendEvent(session, "chat_reply", "ok", payload);
+            StringBuilder fullReply = new StringBuilder();
+            chatApplicationService.chatStream(userId, chatRequest, token -> {
+                try {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("token", token);
+                    payload.put("timestamp", Instant.now().toString());
+                    sendEvent(session, "chat_token", null, payload);
+                    fullReply.append(token);
+                } catch (IOException e) {
+                    log.warn("Failed to send token to session {}: {}", session.getId(), e.getMessage());
+                }
+            });
+
+            Map<String, Object> donePayload = new HashMap<>();
+            donePayload.put("fullReply", fullReply.toString());
+            donePayload.put("timestamp", Instant.now().toString());
+            sendEvent(session, "chat_done", "ok", donePayload);
         } catch (Exception ex) {
             log.warn("WebSocket chat failed for session {}: {}", session.getId(), ex.getMessage());
-            sendError(session, "CHAT_FAILED", ex.getMessage(), null);
+            try {
+                sendError(session, "CHAT_FAILED", ex.getMessage(), null);
+            } catch (IOException ignored) {
+                // session may already be closed
+            }
         }
     }
 
@@ -150,6 +182,13 @@ public class InterviewWebSocketHandler extends TextWebSocketHandler {
             data.putAll(extra);
         }
         sendEvent(session, "error", message, data);
+    }
+
+    private String safeReason(String reason) {
+        if (!StringUtils.hasText(reason)) {
+            return "none";
+        }
+        return reason.trim().toLowerCase().replaceAll("[^a-z0-9._:-]", "_");
     }
 
     private record WsInterviewRequest(

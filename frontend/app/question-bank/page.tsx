@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageErrorState } from "@/components/ui/PageState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { listQuestions, type BackendQuestion, toErrorMessage } from "@/lib/interview-api";
 
@@ -127,12 +128,7 @@ export default function QuestionBankPage() {
       )}
 
       {!loading && error && (
-        <EmptyState
-          icon={ClipboardList}
-          title="加载失败"
-          description={error}
-          action={{ label: "重试", onClick: fetchQuestions }}
-        />
+        <PageErrorState message={error} onAction={fetchQuestions} />
       )}
 
       {!loading && !error && filtered.length === 0 && (

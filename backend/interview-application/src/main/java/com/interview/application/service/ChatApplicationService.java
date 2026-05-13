@@ -7,6 +7,7 @@ import com.interview.application.port.LlmGateway;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 @Service
 public class ChatApplicationService {
@@ -15,13 +16,16 @@ public class ChatApplicationService {
 
     private final LlmGateway llmGateway;
     private final MaterialRagApplicationService materialRagApplicationService;
+    private final PromptTemplateService promptTemplateService;
 
     public ChatApplicationService(
             LlmGateway llmGateway,
-            MaterialRagApplicationService materialRagApplicationService
+            MaterialRagApplicationService materialRagApplicationService,
+            PromptTemplateService promptTemplateService
     ) {
         this.llmGateway = llmGateway;
         this.materialRagApplicationService = materialRagApplicationService;
+        this.promptTemplateService = promptTemplateService;
     }
 
     public ChatResponse chat(Long userId, ChatRequest request) {
@@ -31,7 +35,59 @@ public class ChatApplicationService {
         return new ChatResponse(reply);
     }
 
+    public void chatStream(Long userId, ChatRequest request, Consumer<String> tokenConsumer) {
+        List<String> retrievedContexts = materialRagApplicationService.retrieveContext(userId, request.message(), RAG_TOP_K);
+        String prompt = buildPrompt(request.message(), request.context(), retrievedContexts);
+        llmGateway.chatStream(userId, prompt, tokenConsumer);
+    }
+
     private String buildPrompt(String message, List<ChatMessage> context, List<String> retrievedContexts) {
+        String fromTemplate = buildPromptFromTemplate(message, context, retrievedContexts);
+        if (fromTemplate != null) {
+            return fromTemplate;
+        }
+        return buildPromptFallback(message, context, retrievedContexts);
+    }
+
+    private String buildPromptFromTemplate(String message, List<ChatMessage> context, List<String> retrievedContexts) {
+        try {
+            boolean hasRetrieved = retrievedContexts != null && !retrievedContexts.isEmpty();
+            boolean hasHistory = context != null && !context.isEmpty();
+
+            java.util.Map<String, Object> vars = new java.util.HashMap<>();
+            vars.put("message", sanitize(message));
+            vars.put("hasHistory", hasHistory);
+            vars.put("hasRetrieved", hasRetrieved);
+
+            if (hasRetrieved) {
+                java.util.List<java.util.Map<String, Object>> chunks = new java.util.ArrayList<>();
+                for (int i = 0; i < retrievedContexts.size(); i++) {
+                    java.util.Map<String, Object> chunk = new java.util.HashMap<>();
+                    chunk.put("index", String.valueOf(i + 1));
+                    chunk.put("text", sanitize(retrievedContexts.get(i)));
+                    chunks.add(chunk);
+                }
+                vars.put("retrievedContexts", chunks);
+            }
+
+            if (hasHistory) {
+                java.util.List<java.util.Map<String, Object>> history = new java.util.ArrayList<>();
+                for (ChatMessage msg : context) {
+                    java.util.Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("role", "user".equalsIgnoreCase(msg.role()) ? "user" : "assistant");
+                    item.put("content", sanitize(msg.content()));
+                    history.add(item);
+                }
+                vars.put("history", history);
+            }
+
+            return promptTemplateService.resolveTemplate("chat_default", vars);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String buildPromptFallback(String message, List<ChatMessage> context, List<String> retrievedContexts) {
         StringBuilder sb = new StringBuilder();
         if (retrievedContexts != null && !retrievedContexts.isEmpty()) {
             sb.append("<retrieved_context>\n");

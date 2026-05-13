@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.infrastructure.persistence.mapper.EvalResultMapper">
+    <resultMap id="evalResultMap" type="com.interview.domain.model.EvalResult">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="run_id" javaType="java.lang.Long"/>
+            <arg column="case_id" javaType="java.lang.Long"/>
+            <arg column="actual_output" javaType="java.lang.String"/>
+            <arg column="score" javaType="java.lang.Double"/>
+            <arg column="keyword_hits" javaType="java.lang.String"/>
+            <arg column="structure_valid" javaType="java.lang.Boolean"/>
+            <arg column="duration_ms" javaType="java.lang.Long"/>
+            <arg column="error_msg" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO eval_results (run_id, case_id, actual_output, score, keyword_hits, structure_valid, duration_ms, error_msg)
+        VALUES (#{runId}, #{caseId}, #{actualOutput}, #{score}, #{keywordHits}, #{structureValid}, #{durationMs}, #{errorMsg})
+    </insert>
+
+    <select id="selectByRunId" resultMap="evalResultMap">
+        SELECT id, run_id, case_id, actual_output, score, keyword_hits, structure_valid, duration_ms, error_msg, created_at
+        FROM eval_results WHERE run_id = #{runId}
+    </select>
+</mapper>

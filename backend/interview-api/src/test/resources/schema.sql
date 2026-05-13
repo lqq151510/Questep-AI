@@ -40,6 +40,23 @@ VALUES ('ADMIN', 'Administrator', 'System administrator', 1);
 INSERT INTO roles (role_code, role_name, description, is_system)
 VALUES ('USER', 'User', 'Default application user', 1);
 
+CREATE TABLE IF NOT EXISTS materials (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  material_name VARCHAR(255) NOT NULL,
+  material_type VARCHAR(32) NOT NULL,
+  source_type VARCHAR(32) NOT NULL DEFAULT 'UPLOAD',
+  storage_url VARCHAR(1024) NULL,
+  content_hash CHAR(64) NULL,
+  parse_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  parse_error_msg VARCHAR(500) NULL,
+  analysis_text CLOB NULL,
+  parsed_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 -- Seed demo user (password: demo123456)
 INSERT INTO users (username, email, password_hash, display_name, status)
 VALUES ('demo_user', 'demo@example.com', '$2a$10$cWtOxIZDLnCzXZbQnLZAXuCGEt5FRu.1ibT1SeKWTrdCcxkzfsrIu', 'Demo User', 1);

@@ -6,6 +6,8 @@ import com.interview.domain.model.AsyncTaskRecord;
 import com.interview.domain.model.Material;
 import com.interview.domain.repository.AsyncTaskRecordRepository;
 import com.interview.domain.repository.MaterialRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -42,6 +45,12 @@ class MaterialParseTaskProcessorTest {
 
     @Mock
     private MaterialRagApplicationService materialRagApplicationService;
+
+    @Mock
+    private MeterRegistry meterRegistry;
+
+    @Mock
+    private Counter failureCounter;
 
     @InjectMocks
     private MaterialParseTaskProcessor materialParseTaskProcessor;
@@ -76,6 +85,8 @@ class MaterialParseTaskProcessorTest {
 
         AsyncTaskRecord task = buildTask(11L, 101L);
         Material material = buildMaterial(101L, materialPath.toString());
+        when(meterRegistry.counter(eq("async_task_failure_total"), any(String[].class)))
+                .thenReturn(failureCounter);
         when(materialRepository.findById(101L)).thenReturn(Optional.of(material));
         when(llmGateway.chat(anyLong(), anyString())).thenThrow(new RuntimeException("OpenAI gateway timeout"));
 

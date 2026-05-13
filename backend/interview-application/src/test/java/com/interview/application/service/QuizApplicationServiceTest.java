@@ -51,6 +51,9 @@ class QuizApplicationServiceTest {
     @Mock
     private TransactionTemplate txTemplate;
 
+    @Mock
+    private PromptTemplateService promptTemplateService;
+
     private QuizApplicationService quizApplicationService;
 
     private Material material;
@@ -68,7 +71,7 @@ class QuizApplicationServiceTest {
                 questionRepository,
                 llmGateway,
                 new QuizGenerationPolicy(),
-                new QuizPromptBuilder("Keep each question grounded in backend project experience."),
+                new QuizPromptBuilder("Keep each question grounded in backend project experience.", promptTemplateService),
                 new StructuredQuizPayloadParser(new ObjectMapper()),
                 new QuizFallbackQuestionFactory(),
                 txTemplate

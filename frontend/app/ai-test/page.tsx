@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
+import { InlineErrorState } from "@/components/ui/PageState";
 import {
   generateQuiz,
   listMaterials,
@@ -108,7 +109,9 @@ export default function AITestPage() {
     listMaterials().then((mats) => {
       const ready = mats.filter((m) => m.parseStatus === "SUCCESS");
       setMaterials(ready);
-    }).catch(() => {});
+    }).catch(() => {
+      setError("获取资料失败，请先确认已登录并重试。");
+    });
   }, []);
 
   const startTest = async () => {
@@ -271,9 +274,7 @@ export default function AITestPage() {
             </p>
           )}
 
-          {error && (
-            <p className="text-sm text-[var(--red)] mb-4">{error}</p>
-          )}
+          {error && <InlineErrorState message={error} />}
 
           <button
             type="button"

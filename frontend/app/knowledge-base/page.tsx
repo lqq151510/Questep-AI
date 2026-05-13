@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { InlineErrorState } from "@/components/ui/PageState";
 import { useDashboardStore } from "@/stores/useDashboardStore";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -119,6 +120,10 @@ export default function KnowledgeBasePage() {
           />
         </div>
       </div>
+
+      {apiState === "offline" && (
+        <InlineErrorState message="资料同步失败，请检查网络或登录状态后重试。" />
+      )}
 
       {apiState === "syncing" && filtered.length === 0 && (
         <div className="material-grid">

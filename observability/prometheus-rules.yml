@@ -1,0 +1,41 @@
+groups:
+  - name: interview-platform-alerts
+    rules:
+      - record: llm_call_timeout_rate_5m
+        expr: |
+          sum(rate(llm_call_error_total{error_type=~".*timeout.*"}[5m]))
+          /
+          clamp_min(sum(rate(llm_call_total[5m])), 0.001)
+
+      - record: async_task_failure_rate_5m
+        expr: |
+          sum(rate(async_task_failure_total[5m]))
+          /
+          clamp_min(sum(rate(async_task_failure_total[5m])) + sum(rate(llm_call_total{status="success"}[5m])), 0.001)
+
+      - alert: LlmCallTimeoutRateHigh
+        expr: llm_call_timeout_rate_5m > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM timeout ratio is high"
+          description: "The 5m LLM timeout ratio is above 20%."
+
+      - alert: AsyncTaskFailureRateHigh
+        expr: sum(rate(async_task_failure_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Async task failures are increasing"
+          description: "The async_task_failure_total rate is above 0.05/s in last 10m."
+
+      - alert: WebSocketDisconnectSpike
+        expr: sum(rate(ws_disconnect_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WebSocket disconnect spike detected"
+          description: "ws_disconnect_total rate is above 0.2/s in last 5m."
