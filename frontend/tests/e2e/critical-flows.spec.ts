@@ -40,8 +40,34 @@ async function mockCommonApi(page: Page) {
 }
 
 test("login -> upload material -> generate quiz flow", async ({ page }) => {
+  let uploaded = false;
   await mockCommonApi(page);
+  await page.route("**/api/v1/materials", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: uploaded
+          ? [
+              {
+                id: 101,
+                name: "demo.md",
+                fileType: "MD",
+                parseStatus: "SUCCESS",
+                updatedAt: "2026-05-13 12:00:00",
+              },
+            ]
+          : [],
+      }),
+    });
+  });
   await page.route("**/api/v1/materials/upload", async (route) => {
+    uploaded = true;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -87,7 +113,7 @@ test("login -> upload material -> generate quiz flow", async ({ page }) => {
 
   await page.goto("/login");
   await page.getByLabel("用户名").fill("demo_user");
-  await page.getByLabel("密码").fill("demo123456");
+  await page.locator("#password").fill("demo123456");
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page).toHaveURL(/\/home$/);
 

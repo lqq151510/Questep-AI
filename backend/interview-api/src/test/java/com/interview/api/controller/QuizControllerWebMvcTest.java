@@ -1,21 +1,22 @@
 package com.interview.api.controller;
 
-import com.interview.api.security.JwtAuthenticationFilter;
+import com.interview.api.config.ApiExceptionHandler;
 import com.interview.application.dto.GenerateQuizCommand;
 import com.interview.application.dto.GeneratedQuizResult;
 import com.interview.application.service.QuizApplicationService;
 import com.interview.domain.model.Question;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,18 +31,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = QuizController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@ExtendWith(MockitoExtension.class)
 class QuizControllerWebMvcTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+    @Mock
     private QuizApplicationService quizApplicationService;
 
-    @MockBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(new QuizController(quizApplicationService))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
+    }
 
     @AfterEach
     void cleanSecurityContext() {
