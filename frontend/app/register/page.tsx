@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, RefreshCw, ShieldCheck, UserPlus } from "lucide-react";
+import { Eye, EyeOff, RefreshCw, Server, ShieldCheck, TimerReset, UserPlus } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { useDashboardStore } from "@/stores/useDashboardStore";
+import { fetchBackendHealth, getAuthSessionRemainingMs } from "@/lib/interview-api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,6 +21,8 @@ export default function RegisterPage() {
   const [captchaDisplay, setCaptchaDisplay] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"loading" | "up" | "down">("loading");
+  const [remainingMs, setRemainingMs] = useState<number | null>(getAuthSessionRemainingMs());
 
   useEffect(() => {
     if (isLoggedIn) { router.replace("/home"); return; }
@@ -33,6 +36,29 @@ export default function RegisterPage() {
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, router]);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetchBackendHealth()
+      .then(() => mounted && setBackendStatus("up"))
+      .catch(() => mounted && setBackendStatus("down"));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setRemainingMs(getAuthSessionRemainingMs());
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const remainingLabel = remainingMs === null
+    ? "未登录"
+    : remainingMs <= 0
+      ? "已过期"
+      : `${Math.ceil(remainingMs / 60000)} 分钟`;
 
   const loadCaptcha = async () => {
     const result = await fetchCaptcha();
@@ -81,6 +107,16 @@ export default function RegisterPage() {
       />
 
       <div className="auth-form-wrap">
+        <div className="auth-status-row">
+          <span className="auth-status-pill">
+            <Server size={14} />
+            后端 {backendStatus === "loading" ? "检测中" : backendStatus === "up" ? "在线" : "离线"}
+          </span>
+          <span className="auth-status-pill subtle">
+            <TimerReset size={14} />
+            当前会话：{remainingLabel}
+          </span>
+        </div>
         <form className="auth-form" onSubmit={handleSubmit}>
           {error && <div className="auth-error">{error}</div>}
 
