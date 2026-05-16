@@ -2,6 +2,10 @@ import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 const ACCESS_TOKEN_KEY = "interview_token";
 const REFRESH_TOKEN_KEY = "interview_refresh_token";
+const SESSION_EXPIRES_AT_KEY = "interview_session_expires_at";
+const SESSION_LOGIN_AT_KEY = "interview_session_login_at";
+const AUTH_EXPIRED_EVENT = "interview-auth-expired";
+const DEFAULT_FORCE_LOGIN_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 type ApiResponse<T> = {
   success?: boolean;
@@ -91,6 +95,8 @@ export type GenerateQuizPayload = {
   difficulty: number;
   count: number;
   interviewMode: boolean;
+  searchQuery?: string;
+  enableWebSearch?: boolean;
 };
 
 export type GenerateQuizResult = {
@@ -132,6 +138,74 @@ function readRefreshToken(): string | null {
   return window.localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
+function readSessionExpiresAt(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.localStorage.getItem(SESSION_EXPIRES_AT_KEY);
+  if (!raw) {
+    return null;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function emitAuthExpired(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
+function getForceLoginAfterMs(): number {
+  const raw = process.env.NEXT_PUBLIC_FORCE_LOGIN_AFTER_MS?.trim();
+  const parsed = raw ? Number(raw) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FORCE_LOGIN_AFTER_MS;
+}
+
+function touchSessionExpiry(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const loginAtRaw = window.localStorage.getItem(SESSION_LOGIN_AT_KEY);
+  const loginAt = loginAtRaw ? Number(loginAtRaw) : NaN;
+  const baseLoginAt = Number.isFinite(loginAt) && loginAt > 0 ? loginAt : Date.now();
+  const expiresAt = baseLoginAt + getForceLoginAfterMs();
+  window.localStorage.setItem(SESSION_LOGIN_AT_KEY, String(baseLoginAt));
+  window.localStorage.setItem(SESSION_EXPIRES_AT_KEY, String(expiresAt));
+}
+
+export function refreshAuthSession(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (isAuthSessionExpired()) {
+    clearAuthTokensAndNotify();
+    return;
+  }
+  touchSessionExpiry();
+}
+
+export function isAuthSessionExpired(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const expiresAt = readSessionExpiresAt();
+  return expiresAt !== null && Date.now() >= expiresAt;
+}
+
+export function getAuthSessionExpiresAt(): number | null {
+  return readSessionExpiresAt();
+}
+
+export function getAuthSessionRemainingMs(): number | null {
+  const expiresAt = readSessionExpiresAt();
+  if (!expiresAt) {
+    return null;
+  }
+  return Math.max(0, expiresAt - Date.now());
+}
+
 export function saveAuthTokens(payload: AuthTokenPayload): void {
   if (typeof window === "undefined") {
     return;
@@ -148,6 +222,9 @@ export function saveAuthTokens(payload: AuthTokenPayload): void {
       window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
   }
+  const loginAt = Date.now();
+  window.localStorage.setItem(SESSION_LOGIN_AT_KEY, String(loginAt));
+  window.localStorage.setItem(SESSION_EXPIRES_AT_KEY, String(loginAt + getForceLoginAfterMs()));
 }
 
 export function clearAuthTokens(): void {
@@ -156,6 +233,13 @@ export function clearAuthTokens(): void {
   }
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.localStorage.removeItem(SESSION_EXPIRES_AT_KEY);
+  window.localStorage.removeItem(SESSION_LOGIN_AT_KEY);
+}
+
+export function clearAuthTokensAndNotify(): void {
+  clearAuthTokens();
+  emitAuthExpired();
 }
 
 export function buildInterviewWebSocketUrl(): string {
@@ -212,13 +296,13 @@ async function refreshAccessToken(): Promise<boolean> {
       });
       const payload = await parseApiResponse<AuthTokenPayload>(response);
       if (!response.ok || !payload?.success || !payload.data?.token) {
-        clearAuthTokens();
+        clearAuthTokensAndNotify();
         return false;
       }
       saveAuthTokens(payload.data);
       return true;
     } catch {
-      clearAuthTokens();
+      clearAuthTokensAndNotify();
       return false;
     } finally {
       refreshPromise = null;
@@ -228,15 +312,27 @@ async function refreshAccessToken(): Promise<boolean> {
 }
 
 export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  if (isAuthSessionExpired()) {
+    clearAuthTokensAndNotify();
+    return new Response(null, { status: 401, statusText: "Session expired" });
+  }
+  touchSessionExpiry();
   const response = await fetchWithRetry(url, withAuthorization(options));
   if (response.status !== 401) {
+    if (response.ok) {
+      touchSessionExpiry();
+    }
     return response;
   }
   const refreshed = await refreshAccessToken();
   if (!refreshed) {
     return response;
   }
-  return fetchWithRetry(url, withAuthorization(options));
+  const retried = await fetchWithRetry(url, withAuthorization(options));
+  if (retried.ok) {
+    touchSessionExpiry();
+  }
+  return retried;
 }
 
 async function unwrap<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -256,6 +352,7 @@ async function unwrap<T>(response: Response, fallbackMessage: string): Promise<T
     throw new Error("服务暂时不可用，请稍后重试");
   }
   if (response.status === 401 || response.status === 403) {
+    clearAuthTokensAndNotify();
     throw new Error("未登录或登录已过期，请先登录后再试。");
   }
 
@@ -287,6 +384,14 @@ export async function register(payload: RegisterPayload): Promise<AuthTokenPaylo
 export async function fetchCaptcha(): Promise<CaptchaResult> {
   const response = await fetchWithRetry("/api/v1/auth/captcha", { cache: "no-store" });
   return unwrap<CaptchaResult>(response, "获取验证码失败");
+}
+
+export async function fetchBackendHealth(): Promise<{ status?: string }> {
+  const response = await fetchWithRetry("/actuator/health", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("获取后端状态失败");
+  }
+  return (await response.json()) as { status?: string };
 }
 
 export async function listMaterials(): Promise<BackendMaterial[]> {
