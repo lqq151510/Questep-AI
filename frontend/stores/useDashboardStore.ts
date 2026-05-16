@@ -4,6 +4,7 @@ import { initialDraftQuestions } from "@/lib/dashboard-data";
 import { createLocalMaterial, mapRemoteMaterial, modeText, nowLabel } from "@/lib/dashboard-format";
 import {
   clearAuthTokens,
+  clearAuthTokensAndNotify,
   deleteMaterial as requestDeleteMaterial,
   fetchCaptcha as requestCaptcha,
   generateQuiz as requestGenerateQuiz,
@@ -11,6 +12,7 @@ import {
   listMaterials as requestListMaterials,
   login as requestLogin,
   register as requestRegister,
+  refreshAuthSession,
   saveAuthTokens,
   toErrorMessage,
   retryParseMaterial as requestRetryParse,
@@ -68,11 +70,21 @@ type DashboardState = {
 
 type DashboardSetter = (updater: (state: DashboardState) => Partial<DashboardState>) => void;
 
+const AUTH_EXPIRED_EVENT = "interview-auth-expired";
+
 function readStoredUser(): { username: string } | null {
   if (typeof window === "undefined") return null;
   const token = localStorage.getItem("interview_token");
   const username = localStorage.getItem("interview_username");
-  if (token && username) return { username };
+  const sessionExpiresAtRaw = localStorage.getItem("interview_session_expires_at");
+  const sessionExpiresAt = sessionExpiresAtRaw ? Number(sessionExpiresAtRaw) : NaN;
+
+  if (token && username && Number.isFinite(sessionExpiresAt) && sessionExpiresAt > Date.now()) return { username };
+
+  if (token || username || sessionExpiresAtRaw) {
+    clearAuthTokensAndNotify();
+    localStorage.removeItem("interview_username");
+  }
   return null;
 }
 
@@ -86,6 +98,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const result = await requestLogin(payload);
       saveAuthTokens(result);
+      refreshAuthSession();
       const username = payload.username;
       set({ user: { username }, isLoggedIn: true, authState: "online" });
       localStorage.setItem("interview_username", username);
@@ -100,6 +113,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const result = await requestRegister(payload);
       saveAuthTokens(result);
+      refreshAuthSession();
       const username = payload.username;
       set({ user: { username }, isLoggedIn: true, authState: "online" });
       localStorage.setItem("interview_username", username);
@@ -308,6 +322,22 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
     }
   }
 }));
+
+if (typeof window !== "undefined") {
+  window.addEventListener(AUTH_EXPIRED_EVENT, () => {
+    useDashboardStore.setState({ user: null, isLoggedIn: false, authState: "idle" });
+  });
+
+  window.addEventListener("focus", () => {
+    refreshAuthSession();
+  });
+
+  window.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      refreshAuthSession();
+    }
+  });
+}
 
 function createUploadTask(fileName: string): TaskItem {
   return {
