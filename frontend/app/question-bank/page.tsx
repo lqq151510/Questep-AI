@@ -6,12 +6,20 @@ import {
   ClipboardList,
   Search,
   Bookmark,
+  WandSparkles,
 } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageErrorState } from "@/components/ui/PageState";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { listQuestions, type BackendQuestion, toErrorMessage } from "@/lib/interview-api";
+import {
+  generateQuiz,
+  listMaterials,
+  listQuestions,
+  type BackendQuestion,
+  type BackendMaterial,
+  toErrorMessage
+} from "@/lib/interview-api";
 
 const difficulties = ["全部", "1", "2", "3", "4", "5"];
 const difficultyLabels: Record<string, string> = {
@@ -36,6 +44,10 @@ export default function QuestionBankPage() {
   const [search, setSearch] = useState("");
   const [difficulty, setDifficulty] = useState("全部");
   const [bookmarked, setBookmarked] = useState<Set<number>>(new Set());
+  const [materials, setMaterials] = useState<BackendMaterial[]>([]);
+  const [demand, setDemand] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateMsg, setGenerateMsg] = useState("");
 
   const [page, setPage] = useState(0);
   const [pageSize] = useState(20);
@@ -50,6 +62,11 @@ export default function QuestionBankPage() {
   }, [page, pageSize]);
 
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
+  useEffect(() => {
+    listMaterials()
+      .then((items) => setMaterials(items.filter((item) => item.parseStatus === "SUCCESS")))
+      .catch(() => setMaterials([]));
+  }, []);
 
   const filtered = questions.filter((q) => {
     const matchDiff = difficulty === "全部" || String(q.difficulty ?? "") === difficulty;
@@ -67,6 +84,35 @@ export default function QuestionBankPage() {
       }
       return next;
     });
+  };
+
+  const handleGenerateByDemand = async () => {
+    if (!demand.trim()) {
+      setGenerateMsg("请输入题目需求后再生成");
+      return;
+    }
+
+    setGenerating(true);
+    setGenerateMsg("");
+    try {
+      const payload = {
+        materialIds: materials.slice(0, 3).map((item) => item.id),
+        questionType: "short" as const,
+        difficulty: difficulty === "全部" ? 3 : Number(difficulty),
+        count: 5,
+        interviewMode: true,
+        searchQuery: demand.trim(),
+        enableWebSearch: true
+      };
+      await generateQuiz(payload);
+      await fetchQuestions();
+      setSearch(demand.trim());
+      setGenerateMsg("已按需求生成新题，列表已刷新");
+    } catch (error) {
+      setGenerateMsg(toErrorMessage(error, "按需求生成题目失败"));
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -112,6 +158,33 @@ export default function QuestionBankPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+      </div>
+
+      <div className="panel mt-3">
+        <div className="field-group">
+          <p className="field-label">按需求生成题目（资料分析 + 联网搜索）</p>
+          <div className="flex gap-2 items-center">
+            <div className="search-input-wrap" style={{ flex: 1 }}>
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="输入需求，例如：Spring 事务传播 + 分布式锁 + 高并发场景"
+                value={demand}
+                onChange={(e) => setDemand(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleGenerateByDemand}
+              disabled={generating}
+            >
+              <WandSparkles size={14} />
+              {generating ? "生成中..." : "按需求出题"}
+            </button>
+          </div>
+          {generateMsg && <p className="text-sm text-[var(--muted)] mt-2">{generateMsg}</p>}
         </div>
       </div>
 
