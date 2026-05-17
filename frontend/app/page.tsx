@@ -15,6 +15,7 @@ import {
 import { PageHero } from "@/components/new-ui/PageHero";
 import { FeatureCard } from "@/components/new-ui/cards";
 import { AnimatedCounter } from "@/components/new-ui/cards";
+import { HeroCommandDeck } from "@/components/new-ui/HeroCommandDeck";
 import { LockKeyhole, Settings2, Users } from "lucide-react";
 
 const features = [
@@ -96,23 +97,28 @@ const entryCards = [
 export default function LandingPage() {
   return (
     <div>
-      <PageHero
-        kicker="AI Interview Studio"
-        title="AI 驱动的面试训练平台"
-        description="智能出题、模拟面试、知识管理，一站式提升你的面试能力。让 AI 成为你的私人面试教练。"
-        actions={
-          <>
-            <Link href="/home" className="btn btn-accent">
-              <Sparkles size={16} />
-              开始训练
-              <ArrowRight size={14} />
-            </Link>
-            <Link href="/ai-test" className="btn btn-ghost">
-              快速测试
-            </Link>
-          </>
-        }
-      />
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
+          <PageHero
+            kicker="AI Interview Studio"
+            title="AI 驱动的面试训练控制舱"
+            description="把题库、知识库、模拟面试和个人训练画像集中到一个实时工作台，让 AI 像面试教练一样持续校准你的能力曲线。"
+            actions={
+              <>
+                <Link href="/home" className="btn btn-accent energy-button">
+                  <Sparkles size={16} />
+                  开始训练
+                  <ArrowRight size={14} />
+                </Link>
+                <Link href="/profile" className="btn btn-ghost">
+                  个人中心
+                </Link>
+              </>
+            }
+          />
+        </div>
+        <HeroCommandDeck />
+      </section>
 
       <section className="hero-split">
         <motion.div
@@ -121,12 +127,12 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.45 }}
         >
-          <div className="panel-header compact">
-            <div>
-              <h2>现在开始</h2>
-              <p>先登录，再配置模型和题量。</p>
+            <div className="panel-header compact">
+              <div>
+                <h2>现在开始</h2>
+                <p>先登录，再配置模型和题量。</p>
+              </div>
             </div>
-          </div>
           <div className="hero-entry-grid">
             {entryCards.map((entry) => {
               const Icon = entry.icon;

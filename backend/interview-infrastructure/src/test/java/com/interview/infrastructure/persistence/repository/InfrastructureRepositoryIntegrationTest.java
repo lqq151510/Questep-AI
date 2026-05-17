@@ -130,7 +130,7 @@ class InfrastructureRepositoryIntegrationTest {
         assertEquals(0, created.progress());
 
         AsyncTaskRecord processing = asyncTaskRecordRepository.updateStatus(created.id(), "PROCESSING", 35);
-        assertEquals("PROCESSING", processing.status());
+        assertEquals("RUNNING", processing.status());
         assertEquals(35, processing.progress());
 
         AsyncTaskRecord failed = asyncTaskRecordRepository.updateError(created.id(), "parse failed", null, null, null);

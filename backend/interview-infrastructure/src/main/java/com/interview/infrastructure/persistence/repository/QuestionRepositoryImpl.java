@@ -28,6 +28,7 @@ public class QuestionRepositoryImpl implements QuestionRepository {
             Long creatorUserId,
             String questionType,
             String stemText,
+            String optionsJson,
             String referenceAnswer,
             String analysisText,
             Integer difficulty,
@@ -40,6 +41,7 @@ public class QuestionRepositoryImpl implements QuestionRepository {
         po.setCreatorUserId(creatorUserId);
         po.setQuestionType(questionType);
         po.setStemText(stemText);
+        po.setOptionsJson(optionsJson);
         po.setReferenceAnswer(referenceAnswer);
         po.setAnalysisText(analysisText);
         po.setDifficulty(difficulty);

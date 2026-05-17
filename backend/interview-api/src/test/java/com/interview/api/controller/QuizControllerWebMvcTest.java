@@ -114,6 +114,7 @@ class QuizControllerWebMvcTest {
                 1L,
                 "SHORT_ANSWER",
                 stem,
+                null,
                 "answer",
                 "analysis",
                 3,

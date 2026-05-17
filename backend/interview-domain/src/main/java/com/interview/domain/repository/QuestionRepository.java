@@ -13,12 +13,27 @@ public interface QuestionRepository {
             Long creatorUserId,
             String questionType,
             String stemText,
+            String optionsJson,
             String referenceAnswer,
             String analysisText,
             Integer difficulty,
             String sourceType,
             String modelName
     );
+
+    default Question save(
+            Long materialId,
+            Long creatorUserId,
+            String questionType,
+            String stemText,
+            String referenceAnswer,
+            String analysisText,
+            Integer difficulty,
+            String sourceType,
+            String modelName
+    ) {
+        return save(materialId, creatorUserId, questionType, stemText, null, referenceAnswer, analysisText, difficulty, sourceType, modelName);
+    }
 
     Optional<Question> findById(Long id);
 

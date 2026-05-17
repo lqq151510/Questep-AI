@@ -90,6 +90,8 @@ app:
     ttl-seconds: ${CAPTCHA_TTL_SECONDS:300}
   quiz:
     question-guidance: ${QUIZ_QUESTION_GUIDANCE:Keep each question grounded in backend project experience.}
+    web-search:
+      enabled: ${QUIZ_WEB_SEARCH_ENABLED:true}
   question-review:
     expire-scan-cron: ${QUESTION_EXPIRE_SCAN_CRON:0 0 3 * * *}
     auto-refresh-cron: ${QUESTION_AUTO_REFRESH_CRON:0 15 3 * * *}

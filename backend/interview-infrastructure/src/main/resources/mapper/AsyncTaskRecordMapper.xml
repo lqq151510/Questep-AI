@@ -67,7 +67,7 @@
             <if test="progress != null">progress = #{progress},</if>
             <if test="errorMsg != null">error_msg = #{errorMsg},</if>
             updated_at = CURRENT_TIMESTAMP
-            <if test="status == 'PROCESSING'">, started_at = CURRENT_TIMESTAMP</if>
+            <if test="status == 'PROCESSING' or status == 'RUNNING'">, started_at = CURRENT_TIMESTAMP</if>
             <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at = CURRENT_TIMESTAMP</if>
         </set>
         WHERE id = #{id}
@@ -76,7 +76,7 @@
     <update id="updateStatus">
         UPDATE async_task_records
         SET status = #{status}, progress = #{progress}, updated_at = CURRENT_TIMESTAMP
-        <if test="status == 'PROCESSING'">, started_at = CURRENT_TIMESTAMP</if>
+        <if test="status == 'PROCESSING' or status == 'RUNNING'">, started_at = CURRENT_TIMESTAMP</if>
         <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at = CURRENT_TIMESTAMP</if>
         WHERE id = #{id}
     </update>
@@ -126,7 +126,7 @@
         SET status = #{status},
             progress = #{progress},
             updated_at = CURRENT_TIMESTAMP
-            <if test="status == 'PROCESSING'">, started_at = CURRENT_TIMESTAMP</if>
+            <if test="status == 'PROCESSING' or status == 'RUNNING'">, started_at = CURRENT_TIMESTAMP</if>
             <if test="status == 'SUCCESS' or status == 'FAILED'">, finished_at = CURRENT_TIMESTAMP</if>
         WHERE id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">

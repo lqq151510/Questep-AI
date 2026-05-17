@@ -9,6 +9,7 @@ import com.interview.application.service.quiz.QuizGenerationPolicy;
 import com.interview.application.service.quiz.QuizPromptBuilder;
 import com.interview.application.service.quiz.StructuredQuizPayload;
 import com.interview.application.service.quiz.StructuredQuizPayloadParser;
+import com.interview.application.service.quiz.WebSearchService;
 import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
@@ -18,6 +19,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -47,6 +49,8 @@ public class QuizApplicationService {
     private final StructuredQuizPayloadParser payloadParser;
     private final QuizFallbackQuestionFactory questionFactory;
     private final TransactionTemplate txTemplate;
+    private final WebSearchService webSearchService;
+    private final boolean webSearchEnabledDefault;
 
     public QuizApplicationService(
             MaterialRepository materialRepository,
@@ -56,7 +60,9 @@ public class QuizApplicationService {
             QuizPromptBuilder promptBuilder,
             StructuredQuizPayloadParser payloadParser,
             QuizFallbackQuestionFactory questionFactory,
-            TransactionTemplate txTemplate
+            TransactionTemplate txTemplate,
+            WebSearchService webSearchService,
+            @Value("${app.quiz.web-search.enabled:true}") boolean webSearchEnabledDefault
     ) {
         this.materialRepository = materialRepository;
         this.questionRepository = questionRepository;
@@ -66,42 +72,63 @@ public class QuizApplicationService {
         this.payloadParser = payloadParser;
         this.questionFactory = questionFactory;
         this.txTemplate = txTemplate;
+        this.webSearchService = webSearchService;
+        this.webSearchEnabledDefault = webSearchEnabledDefault;
     }
 
     @CircuitBreaker(name = "llmGateway", fallbackMethod = "generateQuizFallback")
     @RateLimiter(name = "quizGeneration")
     public GeneratedQuizResult generate(Long userId, GenerateQuizCommand command) {
-        validateGenerateInput(userId, command);
+        try {
+            validateGenerateInput(userId, command);
 
-        List<Material> materials = loadMaterials(userId, command.materialIds());
-        String questionType = generationPolicy.normalizeQuestionType(command.questionType());
-        int difficulty = generationPolicy.normalizeDifficulty(command.difficulty());
-        int count = generationPolicy.normalizeCount(command.count());
-        boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+            List<Material> materials = loadMaterials(userId, command.materialIds());
+            boolean searchOnlyMode = materials.isEmpty() && hasSearchDemand(command);
+            String questionType = generationPolicy.normalizeQuestionType(command.questionType());
+            int difficulty = generationPolicy.normalizeDifficulty(command.difficulty());
+            int count = generationPolicy.normalizeCount(command.count());
+            boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+            String searchQuery = normalizeSearchQuery(command.searchQuery());
+            boolean enableWebSearch = command.enableWebSearch() == null
+                    ? webSearchEnabledDefault
+                    : command.enableWebSearch();
+            String webContext = enableWebSearch ? webSearchService.searchContext(searchQuery) : "";
 
-        String prompt = promptBuilder.build(materials, questionType, difficulty, count, interviewMode);
-        String rawLlmResponse = llmGateway.chat(userId, prompt);
-        StructuredQuizPayload payload = payloadParser.parse(rawLlmResponse, count);
-        boolean fallbackUsed = payload == null || payload.questions().size() < count;
-        int invalidCount = payload == null ? count : count - payload.questions().size();
+            String prompt = promptBuilder.build(
+                    materials,
+                    questionType,
+                    difficulty,
+                    count,
+                    interviewMode,
+                    searchQuery,
+                    webContext
+            );
+            String rawLlmResponse = llmGateway.chat(userId, prompt);
+            StructuredQuizPayload payload = payloadParser.parse(rawLlmResponse, count);
+            boolean fallbackUsed = payload == null || payload.questions().size() < count;
+            int invalidCount = payload == null ? count : count - payload.questions().size();
 
-        List<String> warnings = new ArrayList<>();
-        if (payload == null) {
-            warnings.add("LLM response schema invalid, all questions use deterministic fallback templates.");
-        } else if (invalidCount > 0) {
-            warnings.add("部分题目无法从 LLM 响应中解析，已用模板题补充 (" + invalidCount + "/" + count + ")");
+            List<String> warnings = new ArrayList<>();
+            if (payload == null) {
+                warnings.add("LLM response schema invalid, all questions use deterministic fallback templates.");
+            } else if (invalidCount > 0) {
+                warnings.add("部分题目无法从 LLM 响应中解析，已用模板题补充 (" + invalidCount + "/" + count + ")");
+            }
+
+            List<Question> savedQuestions = txTemplate.execute(status ->
+                    persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, payload, searchOnlyMode));
+            return new GeneratedQuizResult(
+                    "quiz-" + shortUuid(),
+                    buildModelBrief(payload, fallbackUsed),
+                    savedQuestions,
+                    fallbackUsed,
+                    invalidCount,
+                    warnings
+            );
+        } catch (Exception ex) {
+            logger.warn("Quiz generation failed, falling back to deterministic templates: {}", ex.getMessage());
+            return generateDeterministicFallback(userId, command, ex);
         }
-
-        List<Question> savedQuestions = txTemplate.execute(status ->
-                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, payload));
-        return new GeneratedQuizResult(
-                "quiz-" + shortUuid(),
-                buildModelBrief(payload, fallbackUsed),
-                savedQuestions,
-                fallbackUsed,
-                invalidCount,
-                warnings
-        );
     }
 
     public List<Question> recent(Long userId, int page, int pageSize) {
@@ -130,7 +157,9 @@ public class QuizApplicationService {
                         toCommandQuestionType(candidate.questionType()),
                         candidate.difficulty(),
                         1,
-                        "INTERVIEW".equalsIgnoreCase(candidate.questionType())
+                        "INTERVIEW".equalsIgnoreCase(candidate.questionType()),
+                        null,
+                        null
                 );
                 generate(candidate.creatorUserId(), command);
                 questionRepository.archiveQuestion(candidate.id(), java.time.LocalDateTime.now());
@@ -177,7 +206,9 @@ public class QuizApplicationService {
                     "choice",
                     safeDifficulty,
                     safeGenerateCount,
-                    false
+                    false,
+                    null,
+                    null
             );
             try {
                 GeneratedQuizResult result = generate(userId, command);
@@ -192,20 +223,30 @@ public class QuizApplicationService {
     private GeneratedQuizResult generateQuizFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
         logger.error("LLM Gateway circuit breaker triggered, using deterministic fallback: {}", throwable.getMessage());
 
+        return generateDeterministicFallback(userId, command, throwable);
+    }
+
+    private GeneratedQuizResult generateDeterministicFallback(Long userId, GenerateQuizCommand command, Throwable throwable) {
         validateGenerateInput(userId, command);
         List<Material> materials = loadMaterials(userId, command.materialIds());
         String questionType = generationPolicy.normalizeQuestionType(command.questionType());
         int difficulty = generationPolicy.normalizeDifficulty(command.difficulty());
         int count = generationPolicy.normalizeCount(command.count());
         boolean interviewMode = Boolean.TRUE.equals(command.interviewMode());
+        boolean searchOnlyMode = materials.isEmpty() && hasSearchDemand(command);
 
+        List<Question> questions = txTemplate.execute(status ->
+                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, null, searchOnlyMode));
+        String reason = throwable == null || throwable.getMessage() == null || throwable.getMessage().isBlank()
+                ? "unknown error"
+                : throwable.getMessage();
         return new GeneratedQuizResult(
                 "quiz-fallback-" + shortUuid(),
-                "LLM unavailable, circuit breaker activated. Generated questions using deterministic fallback templates.",
-                persistQuestions(userId, materials, questionType, difficulty, count, interviewMode, null),
+                "LLM unavailable or generation failed, generated questions using deterministic fallback templates.",
+                questions,
                 true,
                 count,
-                List.of("LLM Gateway 熔断触发，全部使用确定性模板题生成。")
+                List.of("生成链路异常，已降级为确定性模板题：" + reason)
         );
     }
 
@@ -216,16 +257,18 @@ public class QuizApplicationService {
         if (command == null) {
             throw new IllegalArgumentException("command cannot be null");
         }
-        if (command.materialIds() == null || command.materialIds().isEmpty()) {
-            throw new IllegalArgumentException("materialIds cannot be null or empty");
+        boolean hasMaterials = command.materialIds() != null && !command.materialIds().isEmpty();
+        boolean hasSearchDemand = hasSearchDemand(command);
+        if (!hasMaterials && !hasSearchDemand) {
+            throw new IllegalArgumentException("materialIds cannot be empty unless searchQuery or web search is enabled");
         }
     }
 
     private List<Material> loadMaterials(Long userId, List<Long> materialIds) {
-        List<Material> materials = materialRepository.findByUserIdAndIds(userId, materialIds);
-        if (materials.isEmpty()) {
-            throw new IllegalArgumentException("No materials found for quiz generation");
+        if (materialIds == null || materialIds.isEmpty()) {
+            return List.of();
         }
+        List<Material> materials = materialRepository.findByUserIdAndIds(userId, materialIds);
         return materials;
     }
 
@@ -236,14 +279,15 @@ public class QuizApplicationService {
             int difficulty,
             int count,
             boolean interviewMode,
-            StructuredQuizPayload payload
+            StructuredQuizPayload payload,
+            boolean searchOnlyMode
     ) {
         List<QuestionDraft> structuredQuestions = payload == null ? List.of() : payload.questions();
         String modelName = payload == null ? MODEL_NAME_FALLBACK : MODEL_NAME_STRUCTURED;
         List<Question> questions = new ArrayList<>();
 
         for (int index = 0; index < count; index++) {
-            Material material = materials.get(index % materials.size());
+            Material material = materials.isEmpty() ? null : materials.get(index % materials.size());
             QuestionDraft draft = questionFactory.selectDraft(
                     structuredQuestions,
                     material,
@@ -253,10 +297,11 @@ public class QuizApplicationService {
                     interviewMode
             );
             questions.add(questionRepository.save(
-                    material.id(),
+                    material == null ? null : material.id(),
                     userId,
                     questionType,
                     draft.stemText(),
+                    draft.optionsJson(),
                     draft.referenceAnswer(),
                     draft.analysisText(),
                     difficulty,
@@ -305,5 +350,24 @@ public class QuizApplicationService {
             case "INTERVIEW" -> "interview";
             default -> "short";
         };
+    }
+
+    private String normalizeSearchQuery(String query) {
+        if (query == null) {
+            return "";
+        }
+        String normalized = query.trim();
+        if (normalized.length() > 200) {
+            return normalized.substring(0, 200);
+        }
+        return normalized;
+    }
+
+    private boolean hasSearchDemand(GenerateQuizCommand command) {
+        String searchQuery = normalizeSearchQuery(command.searchQuery());
+        boolean enableWebSearch = command.enableWebSearch() == null
+                ? webSearchEnabledDefault
+                : command.enableWebSearch();
+        return !searchQuery.isBlank() || enableWebSearch;
     }
 }

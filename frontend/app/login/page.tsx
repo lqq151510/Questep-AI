@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Server, TimerReset } from "lucide-react";
 import { PageHero } from "@/components/new-ui/PageHero";
 import { useDashboardStore } from "@/stores/useDashboardStore";
+import { fetchBackendHealth, getAuthSessionRemainingMs } from "@/lib/interview-api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,10 +17,35 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"loading" | "up" | "down">("loading");
+  const [remainingMs, setRemainingMs] = useState<number | null>(getAuthSessionRemainingMs());
 
   useEffect(() => {
     if (isLoggedIn) router.replace("/home");
   }, [isLoggedIn, router]);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetchBackendHealth()
+      .then(() => mounted && setBackendStatus("up"))
+      .catch(() => mounted && setBackendStatus("down"));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setRemainingMs(getAuthSessionRemainingMs());
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const remainingLabel = remainingMs === null
+    ? "未登录"
+    : remainingMs <= 0
+      ? "已过期"
+      : `${Math.ceil(remainingMs / 60000)} 分钟`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +73,16 @@ export default function LoginPage() {
       />
 
       <div className="auth-form-wrap">
+        <div className="auth-status-row">
+          <span className="auth-status-pill">
+            <Server size={14} />
+            后端 {backendStatus === "loading" ? "检测中" : backendStatus === "up" ? "在线" : "离线"}
+          </span>
+          <span className="auth-status-pill subtle">
+            <TimerReset size={14} />
+            当前会话：{remainingLabel}
+          </span>
+        </div>
         <form className="auth-form" onSubmit={handleSubmit}>
           {error && <div className="auth-error">{error}</div>}
 

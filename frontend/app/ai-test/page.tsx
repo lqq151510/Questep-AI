@@ -92,6 +92,14 @@ function resolveCorrectIndex(referenceAnswer: string | null | undefined, optionE
   return null;
 }
 
+function buildFallbackOptions(referenceAnswer?: string | null): string[] {
+  const answer = referenceAnswer?.trim();
+  if (answer) {
+    return [answer, "干扰项 B", "干扰项 C", "干扰项 D"];
+  }
+  return ["选项 A", "选项 B", "选项 C", "选项 D"];
+}
+
 export default function AITestPage() {
   const [direction, setDirection] = useState("Java");
   const [difficulty, setDifficulty] = useState(3);
@@ -160,11 +168,9 @@ export default function AITestPage() {
         if (optionEntries.length > 0) {
           options = optionEntries.map(([, value]) => value);
           correct = resolveCorrectIndex(q.referenceAnswer, optionEntries);
-        } else if (q.referenceAnswer) {
-          options = [q.referenceAnswer, "选项 B", "选项 C", "选项 D"];
-          correct = 0;
         } else {
-          options = ["A", "B", "C", "D"];
+          options = buildFallbackOptions(q.referenceAnswer);
+          correct = q.referenceAnswer ? 0 : null;
         }
 
         return {

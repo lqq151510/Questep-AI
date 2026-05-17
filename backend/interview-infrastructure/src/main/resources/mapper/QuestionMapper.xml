@@ -8,6 +8,7 @@
             <arg column="creator_user_id" javaType="java.lang.Long"/>
             <arg column="question_type" javaType="java.lang.String"/>
             <arg column="stem_text" javaType="java.lang.String"/>
+            <arg column="options_json" javaType="java.lang.String"/>
             <arg column="reference_answer" javaType="java.lang.String"/>
             <arg column="analysis_text" javaType="java.lang.String"/>
             <arg column="difficulty" javaType="java.lang.Integer"/>

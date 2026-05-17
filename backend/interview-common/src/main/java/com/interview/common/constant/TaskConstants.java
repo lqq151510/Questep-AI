@@ -4,9 +4,11 @@ public final class TaskConstants {
     private TaskConstants() {}
 
     public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_RUNNING = "RUNNING";
     public static final String STATUS_PROCESSING = "PROCESSING";
     public static final String STATUS_SUCCESS = "SUCCESS";
     public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_CANCELED = "CANCELED";
 
     public static final String TYPE_MATERIAL_PARSE = "MATERIAL_PARSE";
     public static final String BIZ_TYPE_MATERIAL_PARSE = "MATERIAL_PARSE";

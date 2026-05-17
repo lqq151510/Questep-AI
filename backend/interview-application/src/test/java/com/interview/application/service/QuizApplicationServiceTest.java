@@ -8,6 +8,7 @@ import com.interview.application.service.quiz.QuizFallbackQuestionFactory;
 import com.interview.application.service.quiz.QuizGenerationPolicy;
 import com.interview.application.service.quiz.QuizPromptBuilder;
 import com.interview.application.service.quiz.StructuredQuizPayloadParser;
+import com.interview.application.service.quiz.WebSearchService;
 import com.interview.common.constant.TaskConstants;
 import com.interview.domain.model.Material;
 import com.interview.domain.model.Question;
@@ -32,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +77,9 @@ class QuizApplicationServiceTest {
                 new QuizPromptBuilder("Keep each question grounded in backend project experience.", promptTemplateService),
                 new StructuredQuizPayloadParser(new ObjectMapper()),
                 new QuizFallbackQuestionFactory(),
-                txTemplate
+                txTemplate,
+                new WebSearchService(new ObjectMapper()),
+                false
         );
         material = new Material(
                 100L,
@@ -93,7 +98,7 @@ class QuizApplicationServiceTest {
         );
 
         AtomicLong questionId = new AtomicLong(1);
-        when(questionRepository.save(anyLong(), anyLong(), anyString(), anyString(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), anyString()))
+        lenient().when(questionRepository.save(anyLong(), anyLong(), anyString(), anyString(), isNull(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), anyString()))
                 .thenAnswer(invocation -> new Question(
                         questionId.getAndIncrement(),
                         invocation.getArgument(0),
@@ -105,6 +110,7 @@ class QuizApplicationServiceTest {
                         invocation.getArgument(6),
                         invocation.getArgument(7),
                         invocation.getArgument(8),
+                        invocation.getArgument(9),
                         "material://" + invocation.getArgument(0),
                         "material-v1",
                         now,
@@ -119,7 +125,7 @@ class QuizApplicationServiceTest {
     @Test
     @DisplayName("should use structured llm output when schema is valid")
     void shouldUseStructuredLlmOutputWhenSchemaIsValid() {
-        GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 2, false);
+        GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 2, false, null, null);
         when(materialRepository.findByUserIdAndIds(1L, List.of(100L))).thenReturn(List.of(material));
         when(llmGateway.chat(anyLong(), anyString())).thenReturn("""
                 {"summary":"覆盖并发容器与可见性边界","questions":[
@@ -140,7 +146,7 @@ class QuizApplicationServiceTest {
         ArgumentCaptor<String> modelNameCaptor = ArgumentCaptor.forClass(String.class);
         verify(questionRepository, times(2)).save(
                 eq(100L), eq(1L), eq("SHORT_ANSWER"),
-                stemCaptor.capture(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), modelNameCaptor.capture()
+                stemCaptor.capture(), isNull(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), modelNameCaptor.capture()
         );
         List<String> stems = stemCaptor.getAllValues();
         assertTrue(stems.get(0).startsWith("1."));
@@ -151,7 +157,7 @@ class QuizApplicationServiceTest {
     @Test
     @DisplayName("should fallback to deterministic drafts when llm schema is invalid")
     void shouldFallbackToDeterministicDraftsWhenSchemaIsInvalid() {
-        GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 1, true);
+        GenerateQuizCommand command = new GenerateQuizCommand(List.of(100L), "short", 3, 1, true, null, null);
         when(materialRepository.findByUserIdAndIds(1L, List.of(100L))).thenReturn(List.of(material));
         when(llmGateway.chat(anyLong(), anyString())).thenReturn("this-is-not-json");
 
@@ -168,10 +174,70 @@ class QuizApplicationServiceTest {
         ArgumentCaptor<String> modelNameCaptor = ArgumentCaptor.forClass(String.class);
         verify(questionRepository, times(1)).save(
                 eq(100L), eq(1L), eq("SHORT_ANSWER"),
-                stemCaptor.capture(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), modelNameCaptor.capture()
+                stemCaptor.capture(), isNull(), anyString(), anyString(), eq(3), eq(TaskConstants.SOURCE_TYPE_AI), modelNameCaptor.capture()
         );
         assertTrue(stemCaptor.getValue().startsWith("1."));
         assertEquals("fallback-local", modelNameCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("should allow web-search-only quiz generation without materials")
+    void shouldAllowWebSearchOnlyQuizGenerationWithoutMaterials() {
+        LocalDateTime now = LocalDateTime.now();
+        GenerateQuizCommand command = new GenerateQuizCommand(List.of(), "short", 3, 2, true, "Spring 事务传播", true);
+        when(llmGateway.chat(anyLong(), anyString())).thenReturn("""
+                {"summary":"联网搜索题生成","questions":[
+                  {"stem":"Spring 事务传播的核心边界是什么","referenceAnswer":"传播行为决定事务如何跨方法边界传递","analysis":"重点在传播级别"}
+                ]}
+                """);
+        when(questionRepository.save(
+                isNull(),
+                eq(1L),
+                eq("SHORT_ANSWER"),
+                anyString(),
+                isNull(),
+                anyString(),
+                anyString(),
+                eq(3),
+                eq(TaskConstants.SOURCE_TYPE_AI),
+                anyString()
+        )).thenAnswer(invocation -> new Question(
+                200L,
+                null,
+                invocation.getArgument(1),
+                invocation.getArgument(2),
+                invocation.getArgument(3),
+                invocation.getArgument(4),
+                invocation.getArgument(5),
+                invocation.getArgument(6),
+                invocation.getArgument(7),
+                invocation.getArgument(8),
+                invocation.getArgument(9),
+                null,
+                null,
+                now,
+                new java.math.BigDecimal("0.820"),
+                now.plusDays(30),
+                TaskConstants.QUESTION_REVIEW_STATUS_APPROVED,
+                now,
+                now
+        ));
+
+        GeneratedQuizResult result = quizApplicationService.generate(1L, command);
+
+        assertEquals(2, result.questions().size());
+        verify(questionRepository, times(2)).save(
+                isNull(),
+                eq(1L),
+                eq("SHORT_ANSWER"),
+                anyString(),
+                isNull(),
+                anyString(),
+                anyString(),
+                eq(3),
+                eq(TaskConstants.SOURCE_TYPE_AI),
+                anyString()
+        );
     }
 
     @Test
@@ -184,6 +250,7 @@ class QuizApplicationServiceTest {
                 1L,
                 "SHORT_ANSWER",
                 "old stem",
+                null,
                 "old answer",
                 "old analysis",
                 3,

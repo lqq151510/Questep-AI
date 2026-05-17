@@ -9,6 +9,7 @@ public record Question(
         Long creatorUserId,
         String questionType,
         String stemText,
+        String optionsJson,
         String referenceAnswer,
         String analysisText,
         Integer difficulty,

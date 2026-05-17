@@ -1,4 +1,4 @@
 package com.interview.application.service.quiz;
 
-public record QuestionDraft(String stemText, String referenceAnswer, String analysisText) {
+public record QuestionDraft(String stemText, String optionsJson, String referenceAnswer, String analysisText) {
 }

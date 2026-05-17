@@ -48,12 +48,13 @@ public class StructuredQuizPayloadParser {
             List<QuestionDraft> drafts = new ArrayList<>();
             for (JsonNode node : questionsNode) {
                 String stem = normalizeText(node.path("stem").asText(null));
+                String optionsJson = node.hasNonNull("optionsJson") ? node.path("optionsJson").toString() : null;
                 String referenceAnswer = normalizeText(node.path("referenceAnswer").asText(null));
                 String analysis = normalizeText(node.path("analysis").asText(null));
                 if (stem == null || referenceAnswer == null || analysis == null) {
                     continue;
                 }
-                drafts.add(new QuestionDraft(stem, referenceAnswer, analysis));
+                drafts.add(new QuestionDraft(stem, optionsJson, referenceAnswer, analysis));
                 if (drafts.size() >= expectedCount) {
                     break;
                 }

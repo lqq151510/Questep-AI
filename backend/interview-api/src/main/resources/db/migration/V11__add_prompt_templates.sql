@@ -19,5 +19,5 @@ INSERT INTO prompt_templates (template_key, version, name, user_template, variab
 
 INSERT INTO prompt_templates (template_key, version, name, user_template, variables, status) VALUES
 ('quiz_generation', 1, 'Quiz Generation v1',
- 'Generate {{count}} {{questionType}} questions. Materials={{materialNames}}, difficulty={{difficulty}}, interviewMode={{interviewMode}}. {{questionGuidance}} Return ONLY strict JSON with schema: {"summary":"string","questions":[{"stem":"string","referenceAnswer":"string","analysis":"string"}]}. Do not use markdown and do not output any extra keys.',
+ '请用中文生成 {{count}} 道 {{questionType}} 题。材料={{materialNames}}，难度={{difficulty}}，interviewMode={{interviewMode}}。{{questionGuidance}} 仅返回严格 JSON，不要使用 Markdown，不要输出额外字段。JSON 结构必须为：{"summary":"string","questions":[{"stem":"string","optionsJson":{"A":"string","B":"string","C":"string","D":"string"},"referenceAnswer":"string","analysis":"string"}]}。如果题型是 SINGLE_CHOICE，每道题必须提供 4 个互斥选项，且 optionsJson 中 A-D 不能缺失。',
  '["count","questionType","materialNames","difficulty","interviewMode","questionGuidance"]', 'ACTIVE');

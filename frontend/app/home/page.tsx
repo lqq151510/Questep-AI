@@ -103,7 +103,12 @@ const quickLinks = [
 export default function HomePage() {
   const router = useRouter();
   const isLoggedIn = useDashboardStore((s) => s.isLoggedIn);
+  const [mounted, setMounted] = useState(false);
   const [metrics, setMetrics] = useState<HomeMetric[]>(loadingMetrics);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -139,7 +144,7 @@ export default function HomePage() {
     };
   }, [isLoggedIn]);
 
-  if (!isLoggedIn) return null;
+  if (!mounted || !isLoggedIn) return null;
 
   return (
     <div>
